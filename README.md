@@ -10,40 +10,20 @@ This version, pycopia 3, is a redesign using Python 3.4.
 
 Some noteworthy sub-packages and modules:
 
-SNMP          -- An implementation of SNMP v1 and v2c (Manager only now.. but Agent
-                 class just needs to be filled in). 
+aid           -- Generally useful enhancements for Python, some being
+		 enhancements to Python standard library modules.
 
-SMI           -- A library, based on wrapping libsmi, for parsing and accessing MIB
-                 files. 
-
-Devices       -- Defines SNMP Manager objects for specific devices. You can create a
-	         class that represent as device, and define which MIBs it supports.
-
-POM           -- Python Object Model for XML. This is patterned after XML DOM, but is
-                 more pythonic. It also incorporates some XPath funcionality. 
-
-XHTML         -- Utilities and classes for creating XHTML documents. This is based on
-                 the Pythonic Object Model (POM) module, also found here. 
-
-WWW.framework -- A web framework supporting virtual domains.
-
-process       -- Spawn supprocesses. Interact with them using the Expect
-		 object. Get process stats. 
+core, util    -- More generally useful enhancements for Python. These provide
+		 base functionality for subsequent Pycopia3 packages.
 
 CLI           -- Toolkit for making interactive command tools fast and easy.
 
-debugger      -- Enhanced Python debugger.
+debugger      -- Enhanced Python debugger, using the CLI framework.
 
-QA            -- Test harness and framework for running tests, managing tests,
-                 and recording results.
+net           -- Modules for working with networks and servers, such as HTTP client.
 
-storage       -- A database for keeping persistent configuration, the equipment
-                 object model, test cases and test results.
-
-
-This library is mostly governed by the Lesser GNU Public License (LGPL). If a
-module comes from another source then it may have another, more liberal,
-license. Parts here may be Other Peoples Code under the BSD or MIT license.
+Most of this library is mostly governed by the Lesser GNU Public License
+(LGPL). Some modules are under the Apache 2.0 license.
 
 
 INSTALL
@@ -63,7 +43,12 @@ You should already have the following installed for a complete installation.
 
 ### Python packages
 
+- pytz
+- cython
 - pyopenssl
+
+### Optional Python packages (future use)
+
 - iso8601
 - chardet
 - pyro4
@@ -71,8 +56,6 @@ You should already have the following installed for a complete installation.
 - urwid
 - sqlalchemy
 - psycopg
-- cython
-- simplejson (kdart fork)
 - sphinx
 
 
@@ -87,21 +70,24 @@ operation name are taken as sub-package names that are operated on. If no
 names are given then all packages are operated on.
 
 Commands:
- list         -- List available subpackages. These are the names you may optionally supply.
- publish      -- Put source distribution on pypi.
- build        -- Run setuptools build phase on named sub-packages (or all of them).
- install      -- Run setuptools install phase.
- eggs         -- Build distributable egg package.
- rpms         -- Build RPMs on platforms that support building RPMs.
- msis         -- Build Microsoft .msi on Windows.
- wininst      -- Build .exe installer on Windows.
- develop      -- Developer mode, as defined by setuptools.
- developuser  -- Developer mode, installing .pth and script files in user directory.
- clean        -- Run setuptools clean phase.
- squash       -- Squash (flatten) all named sub-packages into single tree
-                 in $PYCOPIA_SQUASH, or user site-directory if no $PYCOPIA_SQUASH defined.
-                 This also removes the setuptools runtime dependency.
 
+<pre>
+ list             -- List available subpackages. These are the names you may optionally supply.
+ publish          -- Put source distribution on pypi.
+ build            -- Run setuptools build phase on named sub-packages (or all of them).
+ install          -- Run setuptools install phase.
+ install_scripts  -- Install all toplevel scripts.
+ eggs             -- Build distributable egg package.
+ rpms             -- Build RPMs on platforms that support building RPMs.
+ msis             -- Build Microsoft .msi on Windows.
+ wininst          -- Build .exe installer on Windows.
+ develop          -- Developer mode, as defined by setuptools. Set per user. Allows
+		     running from workspace.
+ clean            -- Run setuptools clean phase.
+ squash           -- Squash (flatten) all named sub-packages into single tree
+                     in $PYCOPIA_SQUASH, or user site-directory if no $PYCOPIA_SQUASH defined.
+                     This also removes the setuptools runtime dependency.
+</pre>
 Most regular setuptools commands also work. They are passed through by
 default.
 
