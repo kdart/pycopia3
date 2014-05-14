@@ -1,0 +1,22 @@
+#!/usr/bin/python3.4
+
+import sys, os
+
+def main(argv):
+    args = argv[1:]
+    if not args:
+        print ("Usage: %s querystring" % argv[0])
+        return
+    newarg = []
+    for arg in args:
+        if '+' in arg:
+            arg = arg.replace('+', '%2B')
+        if ' ' in arg:
+            arg = '"%s"' % arg
+        arg = arg.replace(' ', '+')
+        newarg.append(arg)
+    s = '+'.join(newarg)
+    url = "http://google.com/search?q=%s" % s
+    os.execvp("xdg-open", ["xdg-open", url])
+
+main(sys.argv)

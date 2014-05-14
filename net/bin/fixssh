@@ -1,0 +1,27 @@
+#!/usr/bin/python3.7
+# vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
+
+"""
+fixssh <hostname>
+Removes the named host from the ssh known_hosts file.
+
+"""
+
+
+import sys
+from pycopia import sshlib
+
+def fixssh(argv):
+    if len(argv) < 2:
+        print (__doc__)
+        return
+    for hostname in argv[1:]:
+        print ("removing known_hosts entry for %s." % (hostname,))
+        sshlib.remove_known_host(hostname)
+    print ("Done!")
+
+
+try:
+    fixssh(sys.argv)
+except KeyboardInterrupt:
+    pass

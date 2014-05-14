@@ -1,0 +1,134 @@
+#
+# DN options
+
+# The organization of the subject.
+organization = "{organization}"
+
+# The organizational unit of the subject.
+unit = "{unit}"
+
+# The locality of the subject.
+locality = {locality}
+
+# The state of the certificate owner.
+state = "{state}"
+
+# The country of the subject. Two letter code.
+country = {country}
+
+# The common name of the certificate owner.
+cn = "{cn}"
+
+# A user id of the certificate owner.
+uid = "{uid}"
+
+# If the supported DN OIDs are not adequate you can set
+# any OID here.
+# For example set the X.520 Title and the X.520 Pseudonym
+# by using OID and string pairs.
+#dn_oid = "2.5.4.12" "Dr." "2.5.4.65" "jackal"
+
+# This is deprecated and should not be used in new
+# certificates.
+# pkcs9_email = "none@none.org"
+
+# The serial number of the certificate
+serial = {serial}
+
+# In how many days, counting from today, this certificate will expire.
+expiration_days = {expiration_days}
+
+# X.509 v3 extensions
+
+# A dnsname in case of a WWW server.
+dns_name = "{dns_name1}"
+dns_name = "{dns_name2}"
+
+# An IP address in case of a server.
+ip_address = "{ip_address1}"
+ip_address = "{ip_address2}"
+
+# An email in case of a person
+email = "{email1}"
+email = "{email2}"
+
+# An URL that has CRLs (certificate revocation lists)
+# available. Needed in CA certificates.
+crl_dist_points = "{crl_dist_point}"
+
+## boolean flags follow
+
+# Whether this is a CA certificate or not
+#ca
+
+# Whether this certificate will be used for a TLS client
+#tls_www_client
+
+# Whether this certificate will be used for a TLS server
+#tls_www_server
+
+# Whether this certificate will be used to sign data (needed
+# in TLS DHE ciphersuites).
+signing_key
+
+# Whether this certificate will be used to encrypt data (needed
+# in TLS RSA ciphersuites). Note that it is preferred to use different
+# keys for encryption and signing.
+#encryption_key
+
+# Whether this key will be used to sign other certificates.
+#cert_signing_key
+
+# Whether this key will be used to sign CRLs.
+#crl_signing_key
+
+# Whether this key will be used to sign code.
+#code_signing_key
+
+# Whether this key will be used to sign OCSP data.
+#ocsp_signing_key
+
+# Whether this key will be used for time stamping.
+#time_stamping_key
+
+# Whether this key will be used for IPsec IKE operations.
+#ipsec_ike_key
+
+
+# possible settings, from source:
+#  char *organization;
+#  char *unit;
+#  char *locality;
+#  char *state;
+#  char *cn;
+#  char *uid;
+#  char *pkcs9_email;
+#  char *country;
+#  char **dns_name;
+#  char **ip_addr;
+#  char **email;
+#  char **dn_oid;
+#  char *crl_dist_points;
+#  char *password;
+#  char *pkcs12_key_name;
+#  int serial;
+#  int expiration_days;
+#  int ca;
+#  int path_len;
+#  int tls_www_client;
+#  int tls_www_server;
+#  int signing_key;
+#  int encryption_key;
+#  int cert_sign_key;
+#  int crl_sign_key;
+#  int code_sign_key;
+#  int ocsp_sign_key;
+#  int time_stamping_key;
+#  int ipsec_ike_key;
+#  char **key_purpose_oids;
+#  int crl_next_update;
+#  int crl_number;
+#  int crq_extensions;
+#  char *proxy_policy_language;
+#  char *challenge_password;
+

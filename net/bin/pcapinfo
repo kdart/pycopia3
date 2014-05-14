@@ -1,0 +1,11 @@
+#!/usr/bin/python3.4
+
+import sys
+
+from pycopia.pcap import report
+
+try:
+    report.pcap_report(sys.argv)
+except KeyboardInterrupt:
+    pass
+

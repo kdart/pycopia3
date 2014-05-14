@@ -1,0 +1,2 @@
+include test.py
+recursive-include pycopia *.doc
