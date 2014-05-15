@@ -70,7 +70,7 @@ class SimpleJSONRPCClient:
             raise JSONRequestError("mismatched id")
         err = res.get("error")
         if err:
-            raise JSONResponseError(err)
+            raise JSONResponseError((err["code"], err["message"]))
         return res["result"]
 
     def get(self, path, query=None):
@@ -100,6 +100,9 @@ class SimpleJSONRPCClient:
     @property
     def cookies(self):
         return self._cookiejar.get_setcookies()
+
+    def clear_cookies(self):
+        return self._cookiejar.clear()
 
 
 
