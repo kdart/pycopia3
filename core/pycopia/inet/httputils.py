@@ -1129,26 +1129,24 @@ class Headers(list):
         return [str(o) for o in self]
 
     def __getitem__(self, index):
-        if type(index) is int:
-            return list.__getitem__(self, index)
-        else:
+        if isinstance(index, HTTPHeader):
             try:
                 i = self.index(index)
             except ValueError:
                 raise IndexError("Header %r not found in list." % (index,))
-            else:
-                return list.__getitem__(self, i)
+            return list.__getitem__(self, i)
+        else:
+            return list.__getitem__(self, index)
 
     def __delitem__(self, index):
-        if type(index) is int:
-            return list.__delitem__(self, index)
-        else:
+        if isinstance(index, HTTPHeader):
             try:
                 i = self.index(index)
             except ValueError:
                 raise IndexError("Header %r not found in list." % (index,))
-            else:
-                return list.__delitem__(self, i)
+            return list.__delitem__(self, i)
+        else:
+            return list.__getitem__(self, index)
 
     def getall(self, key):
         """Return all occurences of `key` in a list."""

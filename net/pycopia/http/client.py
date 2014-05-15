@@ -107,17 +107,19 @@ class HTTPResponse(object):
         except ValueError as err:
             raise EncodingError(str(err))
 
-    def _body_callback(self, buf):
+    def _log(self, buf):
         if self._logfile is not None:
-            self._logfile.write(buf)
+            self._logfile.write(buf.decode(self._logfile.encoding, "replace"))
+
+    def _body_callback(self, buf):
+        self._log(buf)
         if self._downloadfile is not None:
             self._downloadfile.write(buf)
         else:
             self._contents.append(buf)
 
     def _header_callback(self, buf):
-        if self._logfile:
-            self._logfile.write(buf)
+        self._log(buf)
         if buf.startswith(b"HTTP"):
             if self._responseline and self._responseline.find(b"302") >= 0:
                 self._headers = [] # clear headers if redirected.
@@ -483,7 +485,6 @@ class HTTPRequest(Request):
         c.setopt(c.HEADERFUNCTION, resp._header_callback)
         headers = self._headers[:]
         headers.append(httputils.ContentType("application/json-rpc"))
-        headers.append(httputils.Accept(["application/json-rpc", "application/json"]))
         headers.append(httputils.ContentLength(str(len(data))))
         c.setopt(c.HTTPHEADER, list(map(str, headers)))
         self._set_common(c)
@@ -620,7 +621,8 @@ class HTTPRequest(Request):
             if c:
                 h.append(c)
         h.append(httputils.UserAgent(useragents.USER_AGENTS.get(useragent, useragent)))
-        h.append(httputils.Accept(accept))
+        if accept:
+            h.append(httputils.Accept(accept))
         h.append(httputils.AcceptLanguage(language))
         h.append(httputils.AcceptCharset("%s,*;q=0.7" % (encoding,)))
         self._encoding = encoding
@@ -631,7 +633,7 @@ class HTTPRequest(Request):
         if extraheaders and isinstance(extraheaders, list):
             self._headers.extend(list(map(httputils.get_header, extraheaders)))
         if data:
-            self.set_data(data)
+            self._data = data
         else:
             self._data = {}
         self.set_method(method)
@@ -651,10 +653,7 @@ class HTTPRequest(Request):
         self._url = urls.UniversalResourceLocator(url, strict)
 
     def set_data(self, data):
-        if isinstance(data, (dict, list, str)):
-            self._data = data
-        else:
-            raise ValueError("Data must be dict, HTTPForm, list, or string.")
+        self._data = data
 
     def set_method(self, meth):
         if meth not in ("GET", "POST", "PUT", "DELETE"):

@@ -19,8 +19,9 @@ JSON RPC v1.0 over HTTP.
 
 import json
 
-from pycopia.http.client import (HTTPRequest, RequestResponseError)
+from pycopia import urls
 from pycopia.inet import httputils
+from pycopia.http.client import (HTTPRequest, RequestResponseError)
 
 
 class JSONError(Exception):
@@ -55,16 +56,16 @@ class JSON1Method:
 class SimpleJSONRPCClient:
 
     def __init__(self, url, logfile=None):
-        self._url = url
+        self._baseurl = urls.UniversalResourceLocator(url)
         self._cookiejar = httputils.CookieJar()
         self._logfile = logfile
 
-    def call(self, name, *args):
+    def call(self, path, method, *args):
         """Call the remote method, return result.
         """
-        data = JSON1Method(name, args)
-        resp = self.post(data)
-        res = json.loads(resp.body)
+        data = JSON1Method(method, args)
+        resp = self.post(path, data)
+        res = json.loads(resp.body.decode("utf-8"))
         if res["id"] != data.id:
             raise JSONRequestError("mismatched id")
         err = res.get("error")
@@ -72,18 +73,22 @@ class SimpleJSONRPCClient:
             raise JSONResponseError(err)
         return res["result"]
 
-    def get(self, query=None):
-        headers = [httputils.Referer(self._url), httputils.Connection("keep-alive")]
-        request = HTTPRequest(self._url, method="GET", query=query, cookiejar=self._cookiejar, extraheaders=headers)
+    def get(self, path, query=None):
+        url = self._baseurl.copy()
+        url.path = self._baseurl.path + path
+        headers = [httputils.Referer(self._baseurl), httputils.Connection("keep-alive")]
+        request = HTTPRequest(url, method="GET", query=query, cookiejar=self._cookiejar, extraheaders=headers)
         resp = request.perform(self._logfile)
         if resp.status.code != 200:
             raise RequestResponseError(str(resp.status))
         self._cookiejar.parse_mozilla_lines(resp.cookielist)
         return resp
 
-    def post(self, data):
-        headers = [httputils.Referer(self._url), httputils.Connection("keep-alive")]
-        request = HTTPRequest(self._url, data, method="POST", cookiejar=self._cookiejar, extraheaders=headers)
+    def post(self, path, data):
+        url = self._baseurl.copy()
+        url.path = self._baseurl.path + path
+        request = HTTPRequest(url, data, method="POST", cookiejar=self._cookiejar,
+                accept="application/json")
         resp = request.perform(self._logfile)
         if resp.status.code != 200:
             raise RequestResponseError(str(resp.status))
