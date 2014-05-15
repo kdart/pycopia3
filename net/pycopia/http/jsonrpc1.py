@@ -60,11 +60,11 @@ class SimpleJSONRPCClient:
         self._cookiejar = httputils.CookieJar()
         self._logfile = logfile
 
-    def call(self, path, method, *args):
+    def call(self, path, query, method, args):
         """Call the remote method, return result.
         """
         data = JSON1Method(method, args)
-        resp = self.post(path, data)
+        resp = self.post(path, data, query)
         res = json.loads(resp.body.decode("utf-8"))
         if res["id"] != data.id:
             raise JSONRequestError("mismatched id")
@@ -84,9 +84,11 @@ class SimpleJSONRPCClient:
         self._cookiejar.parse_mozilla_lines(resp.cookielist)
         return resp
 
-    def post(self, path, data):
+    def post(self, path, data, query=None):
         url = self._baseurl.copy()
         url.path = self._baseurl.path + path
+        if query:
+            url.query = query
         request = HTTPRequest(url, data, method="POST", cookiejar=self._cookiejar,
                 accept="application/json")
         resp = request.perform(self._logfile)
