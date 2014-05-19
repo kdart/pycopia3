@@ -20,8 +20,22 @@ cdef extern from "Python.h":
     int PyErr_CheckSignals()
 
 
-#cdef extern from "sys/time.h":
-cdef extern from "time.h":
+cdef extern from "signal.h" nogil:
+
+    cdef union sigval:
+        int sival_int
+        void *sival_ptr
+    ctypedef sigval sigval_t
+
+    cdef struct sigevent:
+        sigval_t sigev_value
+        int sigev_signo
+        int sigev_notify
+    ctypedef sigevent sigevent_t
+
+    enum:SIGEV_SIGNAL
+
+cdef extern from "time.h" nogil:
 
     cdef struct timeval:
        long int tv_sec
@@ -39,30 +53,41 @@ cdef extern from "time.h":
         timespec it_interval
         timespec it_value
 
-    int setitimer (int , itimerval *, itimerval *)
+    ctypedef void *timer_t
+
+    int setitimer (int, itimerval *, itimerval *)
     int c_nanosleep "nanosleep" (timespec *, timespec *)
     int clock_nanosleep(int clock_id, int flags, timespec *rqtp, timespec *rmtp)
+
+    int timer_create (int, sigevent *, timer_t *)
+    int timer_delete (timer_t)
+    int timer_settime (timer_t, int, const itimerspec *, itimerspec * )
+    int timer_gettime (timer_t, itimerspec *)
+    int timer_getoverrun(timer_t)
+
+    enum:TIMER_ABSTIME
+    enum:ITIMER_REAL
 
 cdef extern from "sys/timerfd.h":
     int timerfd_create (int, int)
     int timerfd_settime (int, int, itimerspec *, itimerspec *)
     int timerfd_gettime (int, itimerspec *)
 
-DEF TFD_CLOEXEC = 02000000
-DEF TFD_NONBLOCK = 00004000
+    enum:TFD_CLOEXEC
+    enum:TFD_NONBLOCK
+    enum:TFD_TIMER_ABSTIME
+
 
 cdef extern from "string.h":
     char *strerror(int errnum)
 
 cdef extern from "errno.h":
     int errno
+    enum:EINTR
+
 
 cdef extern double floor(double)
 cdef extern double fmod(double, double)
-
-ITIMER_REAL = 0
-ITIMER_VIRTUAL = 1
-ITIMER_PROF = 2
 
 
 CLOCK_REALTIME = 0
@@ -70,9 +95,7 @@ CLOCK_MONOTONIC = 1
 DEF CLOCK_REALTIME = 0
 DEF CLOCK_MONOTONIC = 1
 
-DEF TIMER_ABSTIME = 0x01
-DEF TFD_TIMER_ABSTIME = 1
-DEF EINTR = 4
+
 
 class ItimerError(Exception):
   pass
@@ -133,7 +156,7 @@ the original value of the timer, as a float.
     _set_timeval(&new.it_value, delay)
     new.it_interval.tv_sec = new.it_interval.tv_usec = 0
     if setitimer(ITIMER_REAL, &new, &old) == -1:
-        raise ItimerError, "Could not set itimer for alarm"
+        raise ItimerError("Could not set itimer for alarm")
     return _timeval2float(&old.it_value)
 
 
@@ -185,7 +208,7 @@ cdef class FDTimer:
         def __get__(self):
             return self._fd == -1
 
-    def settime(self, double expire, double interval, int absolute=0):
+    def settime(self, double expire, double interval=0.0, int absolute=0):
         """settime(expire, interface, absolute=0)
     Set time for initial timeout, and subsequent intervals. Set interval to
     zero for one-shot timer. Set expire time to zero to disarm. The time is
@@ -196,7 +219,6 @@ cdef class FDTimer:
         cdef itimerspec old
         cdef timespec ts_interval
         cdef timespec ts_expire
-        cdef int flags
         _set_timespec(&ts_expire, expire)
         _set_timespec(&ts_interval, interval)
         ts.it_interval = ts_interval
@@ -228,4 +250,91 @@ cdef class FDTimer:
                 PyErr_CheckSignals()
             else:
                 raise OSError((errno, strerror(errno)))
+
+
+
+cdef class IntervalTimer:
+    """IntervalTimer(signo, clockid=CLOCK_MONOTONIC)
+    POSIX per-process interval timers,
+    signum is the signal to use when expiring.
+
+    """
+    cdef timer_t _timerid
+    cdef int _clocktype
+    cdef int _thesig
+
+    def __init__(self, int signo, int clockid=CLOCK_MONOTONIC):
+        cdef sigevent_t sev
+
+        sev.sigev_notify = SIGEV_SIGNAL
+        sev.sigev_signo = signo
+        sev.sigev_value.sival_ptr = &self._timerid
+        while 1:
+            rv = timer_create(clockid, &sev, &self._timerid)
+            if rv == EINTR:
+                PyErr_CheckSignals()
+            elif rv == 0:
+                self._clocktype = clockid
+                self._thesig = signo
+                return
+            else:
+                raise OSError((rv, strerror(rv)))
+
+    property signo:
+        "signal number"
+        def __get__(self):
+            return self._thesig
+
+    property id:
+        "timer identifier"
+        def __get__(self):
+            return <long> self._timerid
+
+    property clockid:
+        "clockid (type)"
+        def __get__(self):
+            return self._clocktype
+
+    def __dealloc__(self):
+        timer_delete(self._timerid)
+
+    def __repr__(self):
+        return "IntervalTimer({0:d}. {1:d})".format(self._thesig, self._clocktype)
+
+    def __str__(self):
+        return "IntervalTimer: signo: {0:d} clockid: {1:d} id: {2:X}".format(
+                self._thesig, self._clocktype, <long> self._timerid)
+
+    def settime(self, double expire, double interval=0.0, absolute=False):
+        """Set expire time and interval time.
+        Returns the tuple (timeremaining, interval).
+        """
+        cdef itimerspec new_value
+        cdef itimerspec old_value
+        cdef timespec ts_interval
+        cdef timespec ts_expire
+
+        _set_timespec(&ts_expire, expire)
+        _set_timespec(&ts_interval, interval)
+        new_value.it_interval = ts_interval
+        new_value.it_value = ts_expire
+        rv = timer_settime(self._timerid, TIMER_ABSTIME if absolute else 0, &new_value, &old_value)
+        if rv == 0:
+            return _timespec2float(&old_value.it_value), _timespec2float(&old_value.it_interval)
+        else:
+            raise OSError((rv, strerror(rv)))
+
+    def gettime(self):
+        """Return current expire time and interval time."""
+        cdef itimerspec ts
+
+        rv = timer_gettime(self._timerid, &ts)
+        if rv == 0:
+            return _timespec2float(&ts.it_value), _timespec2float(&ts.it_interval)
+        else:
+            raise OSError((rv, strerror(rv)))
+
+    def getoverrun(self):
+        return timer_getoverrun(self._timerid)
+
 

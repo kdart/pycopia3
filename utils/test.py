@@ -23,11 +23,12 @@ from __future__ import division
 import unittest
 import signal
 import time
+import os
 
 import readline
 import fcntl
 import mmap
-from pycopia import fdtimer
+from pycopia import timers
 
 s = time.time()
 
@@ -43,7 +44,7 @@ class UtilsTests(unittest.TestCase):
         signal.signal(signal.SIGALRM, catcher)
         start = s = time.time()
         try:
-            fdtimer.alarm(2.5)
+            timers.alarm(2.5)
             signal.pause()
         finally:
             signal.signal(signal.SIGALRM, signal.SIG_DFL)
@@ -55,7 +56,7 @@ class UtilsTests(unittest.TestCase):
         start = s = time.time()
         try:
             signal.alarm(2)
-            fdtimer.nanosleep(10.0)
+            timers.nanosleep(10.0)
         finally:
             signal.signal(signal.SIGALRM, signal.SIG_DFL)
         self.assertAlmostEqual(time.time()-start, 10.0, places=2)
@@ -66,13 +67,13 @@ class UtilsTests(unittest.TestCase):
         start = s = time.time()
         try:
             signal.alarm(2)
-            fdtimer.absolutesleep(start + 10.0)
+            timers.absolutesleep(start + 10.0)
         finally:
             signal.signal(signal.SIGALRM, signal.SIG_DFL)
         self.assertAlmostEqual(time.time()-start, 10.0, places=2)
 
     def test_FDTimer(self):
-        t = fdtimer.FDTimer()
+        t = timers.FDTimer()
         self.assertFalse(t)
         t.settime(5.0, 2.0)
         self.assertTrue(t)
@@ -88,12 +89,44 @@ class UtilsTests(unittest.TestCase):
         self.assertTrue(t.closed)
 
     def test_FDTimer_absolute(self):
-        t = fdtimer.FDTimer(fdtimer.CLOCK_REALTIME)
+        t = timers.FDTimer(timers.CLOCK_REALTIME)
         start = time.time()
         t.settime(time.clock_gettime(time.CLOCK_REALTIME)+5.0, 0.0, absolute=True)
         print(t.read())
         t.close()
         self.assertAlmostEqual(time.time()-start, 5.0, places=2)
+
+    def test_timer_create(self):
+        global _t
+        _t = timers.IntervalTimer(signal.SIGRTMIN, timers.CLOCK_MONOTONIC)
+        print(repr(_t))
+        print(_t)
+
+    def test_timer_cset(self):
+        global _t
+        signal.signal(signal.SIGRTMIN, catcher)
+        now = time.monotonic()
+        try:
+            _t.settime(now + 2.5, absolute=True)
+            timers.nanosleep(1.0)
+            print(_t.gettime())
+            signal.pause()
+            print(_t.gettime())
+            _t.settime(0, absolute=True)
+        finally:
+            signal.signal(signal.SIGRTMIN, signal.SIG_DFL)
+        self.assertAlmostEqual(time.monotonic()-now, 2.5, places=2)
+
+    def test_timer_csoverruns(self):
+        global _t
+        ov = _t.getoverrun()
+        print(_t.getoverrun())
+        self.assertEqual(ov, 0)
+
+    def test_timer_delete(self):
+        global _t
+        del _t
+
 
 if __name__ == '__main__':
     unittest.main()

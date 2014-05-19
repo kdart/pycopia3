@@ -18,9 +18,9 @@ SCRIPTS = []
 EXTENSIONS = []
 
 if sys.platform == "darwin":
-    EXTENSIONS.append(Extension('pycopia.fdtimer', ['pycopia.fdtimer.c']))
+    EXTENSIONS.append(Extension('pycopia.timers', ['pycopia.timers.c']))
 elif sys.platform.startswith("linux"):
-    EXTENSIONS.append(Extension('pycopia.fdtimer', ['pycopia.fdtimer.pyx'], libraries=["rt"]))
+    EXTENSIONS.append(Extension('pycopia.timers', ['pycopia.timers.pyx'], libraries=["rt"]))
     SCRIPTS = glob("bin/*")
 
 
@@ -41,12 +41,12 @@ setup (name=NAME, version=VERSION,
     privileges. This module contains some helper programs so that Pycopia
     scripts can run as non-root, but still perform some functions that
     require root (e.g. open ICMP socket, SNMP trap port, and syslog port).
-    It also contains the compiled modules, such as fdtimer.
+    It also contains the compiled modules, such as Linux timers module.
     """,
     license = "LGPL",
     author = "Keith Dart",
     author_email = "keith@dartworks.biz",
-    keywords = "pycopia fdtimer ping",
+    keywords = "pycopia timers ping",
     url = "http://www.pycopia.net/",
     #download_url = "ftp://ftp.pycopia.net/pub/python/%s.%s.tar.gz" % (NAME, VERSION),
     classifiers = ["Operating System :: POSIX",

@@ -17,12 +17,12 @@ import unittest
 
 from pycopia import aid
 from pycopia import dictlib
-from pycopia import UserFile
+from pycopia import fileutils
 from pycopia import getopt
 from pycopia import gzip
 from pycopia import timelib
 from pycopia import tty
-from pycopia import urlparse
+from pycopia import urls
 from pycopia import textutils
 from pycopia import timespec
 
@@ -52,7 +52,6 @@ class AidTests(unittest.TestCase):
         src = "one {one} {{notaone}} two {two}"
         fmt = aid.formatstr(src)
         assert src.format(one="ONE", two="TWO") == fmt(one="ONE", two="TWO")
-        assert fmt.attributes == ["two", "one"]
 
     def test_newclass(self):
         New = aid.newclass("New", MyBaseClass)
@@ -79,29 +78,11 @@ class AidTests(unittest.TestCase):
         print(d.two)
         print(d["two"])
 
-    def test_UserFile(self):
-        fd = UserFile.UserFile("/etc/hosts", "rb")
-        while 1:
-            d = fd.read(1024)
-            if not d:
-                break
-        fd.close()
-
     def test_timelib(self):
-        mt = timelib.localtime_mutable()
-        print(mt)
-        mt.add_seconds(3600)
-        print(mt)
-        print(timelib.strftime("%Y-%m-%d", timelib.weekof(timelib.time())))
-
-        t = timelib.now()
-        for d in range(1, 60):
-            week = timelib.weekof(t+(d*60*60*24))
-            print(timelib.MutableTime(week))
-
         print("Local time:")
         print(timelib.localtimestamp())
 
+    def test_timespec(self):
         p = timespec.TimespecParser()
         for spec, secs in [
             ("0s", 0.0),
@@ -115,7 +96,7 @@ class AidTests(unittest.TestCase):
             ("1h-3m", 3420.0),
             ("1d 3m", 86580.0)]:
             p.parse(spec)
-            self.assert_(p.seconds == secs)
+            self.assertTrue(p.seconds == secs)
 
         self.assertRaises(ValueError, p.parse, "12m -m")
 

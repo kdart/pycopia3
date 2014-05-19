@@ -20,7 +20,6 @@ general enough to be new built-ins.
 
 import sys
 from math import ceil
-from errno import EINTR
 from collections import deque
 
 
@@ -368,23 +367,13 @@ def debugmethod(meth):
     return _lambda
 
 def systemcall(meth):
-    """Decorator to make system call methods safe from EINTR."""
-    # have to import this way to avoid a circular import
-    from _socket import error as SocketError
+    """Decorator to make system call methods safe from interrupted system calls."""
     def systemcallmeth(*args, **kwargs):
         while 1:
             try:
                 rv = meth(*args, **kwargs)
-            except EnvironmentError as why:
-                if why.args and why.args[0] == EINTR:
-                    continue
-                else:
-                    raise
-            except SocketError as why:
-                if why.args and why.args[0] == EINTR:
-                    continue
-                else:
-                    raise
+            except InterruptedError:
+                continue
             else:
                 break
         return rv

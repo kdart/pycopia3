@@ -25,7 +25,6 @@ import signal
 import fcntl
 import struct
 from termios import *
-from errno import EINTR
 
 
 class PageQuitError(Exception):
@@ -448,11 +447,8 @@ automatically adjusts output according to screen size.  """
                 try:
                     c = self.stdin.read(1)
                     break
-                except EnvironmentError as why:
-                    if why.errno == EINTR:
-                        continue
-                    else:
-                        raise
+                except InterruptedError:
+                    continue
         finally:
             tcsetattr(self.stdin, TCSAFLUSH, savestate)
         self.stdout.write(self.prompterase)
@@ -479,11 +475,8 @@ def get_key(prompt=""):
             try:
                 c = si.read(1)
                 break
-            except EnvironmentError as why:
-                if why.errno == EINTR:
-                    continue
-                else:
-                    raise
+            except InterruptedError:
+                continue
     finally:
         tcsetattr(si, TCSAFLUSH, savestate)
     so.write(clear)
@@ -501,11 +494,8 @@ def getpass(prompt="Password: "):
             try:
                 c = si.readline()
                 break
-            except EnvironmentError as why:
-                if why.errno == EINTR:
-                    continue
-                else:
-                    raise
+            except InterruptedError:
+                continue
     finally:
         tcsetattr(si, TCSAFLUSH, savestate)
     so.write('\n')
