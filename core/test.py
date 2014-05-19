@@ -17,6 +17,8 @@
 import os
 import time
 
+now = time.time
+
 import unittest
 
 from pycopia import asyncio
@@ -121,6 +123,24 @@ class CoreTests(unittest.TestCase):
             ms = re_inverse.make_match_string(RE)
         for i in range(20):
             ms = re_inverse.make_nonmatch_string(RE)
+
+    def _tp(self, set, starttime):
+        elapsed = now() - starttime
+        self.assertAlmostEqual(elapsed, set, places=2)
+        print("%.2f elapsed for %s sec delay" % (elapsed, set))
+
+    def test_basic_scheduler(self):
+        sched = scheduler.get_scheduler()
+        start = now()
+        sched.add(self._tp, 2, args=(2, start))
+        sched.add(self._tp, 4, args=(4, start))
+        sched.add(self._tp, 5, args=(5, start))
+        sched.add(self._tp, 6, args=(6, start))
+        sched.add(self._tp, 7, args=(7, start))
+        print("sleeping for 8 seconds")
+        sched.sleep(8)
+        self.assertAlmostEqual(now()-start, 8.0, places=2)
+        scheduler.del_scheduler()
 
     def XXXtest_sequencer(self):
         counters = [0, 0, 0, 0, 0]
