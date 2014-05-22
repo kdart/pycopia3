@@ -23,9 +23,9 @@ object CLI's, and other neat stuff.
 """
 
 __all__ = ['CLIException', 'CommandQuit', 'CommandExit', 'NewCommand',
-'BaseCommands', 'DictCLI', 'ListCLI', 'GenericCLI', 'FileCLI',
+'BaseCommands', 'DictCLI', 'ListCLI', 'GenericCLI',
 'Completer', 'Shell', 'CommandParser', 'globargv', 'breakout_args',
-'clieval', 'get_generic_cmd', 'get_generic_clone', 'get_generic_cli',
+'clieval',
 'get_history_file', 'run_cli_wrapper', 'run_cli', 'run_generic_cli',
 'get_cli', 'get_terminal_ui', 'get_ui']
 
@@ -405,29 +405,6 @@ argument must match a name of a method.
     Echoes arguments back.  """
         self._ui.printf(" ".join(argv[1:]))
         return self._environ["_"]
-
-    def pipe(self, argv):
-        """pipe <command>
-    Runs a shell command via a pipe, and prints its stdout and stderr. You may
-    also prefix the command with "!" to run "pipe". """
-        from pycopia import proctools
-        argv = globargv(argv)
-        proc = proctools.spawnpipe(" ".join(argv))
-        text = proc.read()
-        self._print(text)
-        proc.close()
-        return proc.wait()
-
-    def spawn(self, argv):
-        """spawn <command>...
-    Spawn another process (uses a pty). You may also prefix the command
-    with "%" to run spawn."""
-        from pycopia import proctools
-        argv = globargv(argv)
-        proc = proctools.spawnpty(" ".join(argv))
-        cmd = self.clone(FileCLI)
-        cmd._setup(proc, "Process:%s> " % (proc.cmdline.split()[0],))
-        raise NewCommand(cmd)
 
     def help(self, argv):
         """help [-lLcia] [<commandname>]...
@@ -1076,72 +1053,6 @@ methods/commands that correspond to the wrapped objects methods.  """
         self._reset_scopes()
 
 
-# used to interact with file-like objects.
-class FileCLI(GenericCLI):
-    """Commands for file-like objects."""
-    def read(self, argv):
-        """read [amt]
-    Read <amt> bytes of data."""
-        args, kwargs = breakout_args(argv[1:], vars(self._obj))
-        data = self._obj.read(*args)
-        self._print(data)
-        return data
-
-    def write(self, argv):
-        """write <data>
-    Writes the arguments to the file."""
-        writ = self._obj.write(" ".join(argv[1:]))
-        writ += self._obj.write("\r")
-        self._print("wrote %d bytes." % (writ,))
-        return writ
-
-    def interact(self, argv):
-        """interact
-    Read and write to the file object. Works best with Process objects."""
-        io = self._ui._io
-        import select
-        from errno import EINTR
-        escape = chr(29) # ^]
-        self._print("\nEntering interactive mode.")
-        self._print("Type ^%s to stop interacting." % (chr(ord(escape) | 0x40)))
-        # save tty state and set to raw mode
-        stdin_fd = io.fileno()
-        fo_fd = self._obj.fileno()
-        ttystate = tty.tcgetattr(stdin_fd)
-        tty.setraw(stdin_fd)
-        while 1:
-            try:
-                rfd, wfd, xfd = select.select([fo_fd, stdin_fd], [], [])
-            except select.error as errno:
-                if errno[0] == EINTR:
-                    continue
-            if fo_fd in rfd:
-                try:
-                    text = self._obj.read(4096)
-                except (OSError, EOFError) as err:
-                    tty.tcsetattr(stdin_fd, tty.TCSAFLUSH, ttystate)
-                    self._print('*** EOF ***')
-                    self._print(err)
-                    break
-                if text:
-                    io.write(text)
-                    io.flush()
-                else:
-                    break
-            if stdin_fd in rfd:
-                char = io.read(1)
-                if char == escape:
-                    break
-                else:
-                    try:
-                        self._obj.write(char)
-                    except:
-                        tty.tcsetattr(stdin_fd, tty.TCSAFLUSH, ttystate)
-                        extype, exvalue, tb = sys.exc_info()
-                        io.errlog("%s: %s\n" % (extype, exvalue))
-                        tty.setraw(stdin_fd)
-        tty.tcsetattr(stdin_fd, tty.TCSAFLUSH, ttystate)
-
 # The object's public interface is defined to be the methods that don't
 # have a leading underscore, and do have a docstring.
 def _get_methodnames(obj):
@@ -1204,58 +1115,6 @@ class Completer(object):
                 Completer.get_class_members(base, rv)
         return rv
 
-def get_generic_cmd(obj, ui, cliclass=GenericCLI, aliases=None, gbl=None):
-    """get a GenericCLI (or other) command set wrapping any class instance
-    object. The wrapped objects public methods have CLI command counterparts
-    automatically created."""
-    import new
-    from pycopia.methodholder import MethodHolder
-    cmd = cliclass(ui, aliases)
-    if gbl is None:
-        gbl = globals()
-    hashfilter = {}
-    for name in _get_methodnames(obj):
-        if hasattr(cmd, name):
-            continue # don't override already defined methods
-        # all this mess does is introspect the object methods and map it to a CLI
-        # object method of the same name, with a docstring showing the attributes
-        # and their default values, and the actual code mirroring the
-        # _generic_call method in the GenericCLI class.
-        else:
-            obj_meth = getattr(obj, name)
-            if id(obj_meth.__func__) in hashfilter: # filter out aliases
-                continue
-            else:
-                hashfilter[id(obj_meth.__func__)] = True
-            mh = MethodHolder(obj_meth)
-            doc = "%s  *\n%s" % (mh, obj_meth.__doc__ or "")
-            code = cliclass._generic_call.func_code
-            nc = new.code(code.co_argcount, code.co_nlocals, code.co_stacksize,
-                code.co_flags, code.co_code,
-                (doc,)+code.co_consts[1:], # replace docstring
-                code.co_names, code.co_varnames, code.co_filename,
-                code.co_name, code.co_firstlineno, code.co_lnotab)
-            f = new.function(nc, gbl, name)
-            m = new.instancemethod(f, cmd, cliclass)
-            setattr(cmd, name, m)
-    cmd._setup(obj, "Object:%s> " % (obj.__class__.__name__,))
-    return cmd
-
-def get_generic_clone(obj, cli, cliclass=GenericCLI, theme=None):
-    "Return a generic clone of an existing Command object."
-    newui = cli._ui.clone(theme)
-    return get_generic_cmd(obj, newui, cliclass, aliases=cli._aliases)
-
-def get_generic_cli(obj, cliclass=GenericCLI, env=None, aliases=None, theme=None, logfile=None, historyfile=None):
-    """ get_generic_cli(obj, cliclass=GenericCLI, env=None, aliases=None)
-Returns a generic CLI object with command methods mirroring the public
-methods in the supplied object.  Ready to interact() with! """
-    io = ConsoleIO()
-    ui = UserInterface(io, env, theme)
-    cmd = get_generic_cmd(obj, ui, cliclass, aliases)
-    cmd._export("PS1", "%s> " % (obj.__class__.__name__,))
-    cli = CommandParser(cmd, logfile, historyfile)
-    return cli
 
 # this class is indended to be wrapped by GenericCLI as a general Python CLI.
 # It does nothing but allow GenericCLI to pass through its basic functionality.
@@ -1551,51 +1410,6 @@ class CommandParser(object):
             sys.stdin = sys.__stdin__
         fsm.arg += io.getvalue().strip()
 
-# get a cli built from sys.argv
-def run_cli_wrapper(argv, wrappedclass=Shell, cliclass=GenericCLI, theme=None):
-    """Instantiate a class object (the wrappedclass), and run a CLI wrapper on it."""
-    logfile = sourcefile = None
-    paged = False
-    try:
-        optlist, longopts, args = getopt.getopt(argv[1:], "?hgs:")
-    except getopt.GetoptError:
-            print (wrappedclass.__doc__)
-            return
-    for opt, val in optlist:
-        if opt in ("-?", "-h", "--help"):
-            print (run_cli_wrapper.__doc__)
-            return
-        elif opt == "-s":
-            sourcefile = val
-        elif opt == "-g":
-            paged = True
-        elif opt == "-l":
-            logfile = open(val, "w")
-    if args:
-        targs, kwargs = breakout_args(args)
-    else:
-        targs, kwargs = (), {}
-    try:
-        obj = wrappedclass(*targs, **kwargs)
-    except (ValueError, TypeError):
-        print ("Bad parameters.")
-        print (wrappedclass.__doc__)
-        return
-    if paged:
-        io = tty.PagedIO()
-    else:
-        io = ConsoleIO()
-    ui = UserInterface(io, None, theme)
-    cmd = get_generic_cmd(obj, ui, cliclass)
-    cmd._export("PS1", "%%I%s%%N(%s%s%s)> " % (wrappedclass.__name__,
-                ", ".join(map(repr, targs)),  ", " if kwargs else "",
-                ", ".join(map(lambda t: "%s=%r" % t, kwargs.items()))) )
-    cli = CommandParser(cmd, logfile)
-    if sourcefile:
-        cli.parse(sourcefile)
-    else:
-        cli.interact()
-
 
 def run_cli(cmdclass, io, env=None, logfile=None, theme=None, historyfile=None):
     ui = UserInterface(io, env, theme)
@@ -1603,11 +1417,13 @@ def run_cli(cmdclass, io, env=None, logfile=None, theme=None, historyfile=None):
     parser = CommandParser(cmd, logfile, historyfile)
     parser.interact()
 
+
 def run_generic_cli(cmdclass=BaseCommands):
     env = environ.Environ()
     env.inherit()
     io = ConsoleIO()
     run_cli(cmdclass, io, env)
+
 
 # factory for Command classes. Returns a parser.
 def get_cli(cmdclass, env=None, aliases=None, logfile=None, paged=False, theme=None, historyfile=None):
@@ -1620,12 +1436,14 @@ def get_cli(cmdclass, env=None, aliases=None, logfile=None, paged=False, theme=N
     parser = CommandParser(cmd, logfile, historyfile)
     return parser
 
+
 def get_terminal_ui(env=None, paged=False, theme=None):
     if paged:
         io = tty.PagedIO()
     else:
         io = ConsoleIO()
     return UserInterface(io, env, theme)
+
 
 def get_ui(ioc=ConsoleIO, uic=UserInterface, themec=DefaultTheme, env=None):
     io = ioc()
