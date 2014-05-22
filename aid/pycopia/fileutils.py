@@ -113,3 +113,18 @@ def mode_string(fd):
     else:
         return mode
 
+
+def close_on_exec(fd):
+    flags = fcntl.fcntl(fd, fcntl.F_GETFD)
+    flags |= fcntl.FD_CLOEXEC
+    fcntl.fcntl(fd, fcntl.F_SETFD, flags)
+
+
+def set_nonblocking(fd, flag=1):
+    flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+    if flag:
+        flags |= os.O_NONBLOCK # set non-blocking
+    else:
+        flags &= ~os.O_NONBLOCK # set blocking
+    fcntl.fcntl(fd, fcntl.F_SETFL, flags)
+

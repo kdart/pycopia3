@@ -23,11 +23,11 @@ class ExitStatus(object):
     EXITED = 1
     STOPPED = 2
     SIGNALED = 3
-    def __init__(self, cmdline, sts):
-        self.cmdline = cmdline
+    def __init__(self, sts, name="unknown"):
+        self.name = name
         if os.WIFEXITED(sts):
             self.state = 1
-            self._status = self._es = os.WEXITSTATUS(sts)
+            self._status = os.WEXITSTATUS(sts)
 
         elif os.WIFSTOPPED(sts):
             self.state = 2
@@ -49,27 +49,22 @@ class ExitStatus(object):
         return self.state == 3
 
     def __int__(self):
-        if self.state == 1:
-            return self._status
-        else:
-            name = self.cmdline.split()[0]
-            raise ValueError("ExitStatus: %r did not exit normally." % (name,))
+        return self._status
 
     # exit status truth value is true if normal exit, and false otherwise.
     def __bool__(self):
         return (self.state == 1) and not self._status
 
     def __str__(self):
-        name = self.cmdline.split()[0]
         if self.state == 1:
-            if self._es == 0:
-                return "%s: Exited normally." % (name)
+            if self._status == 0:
+                return "%s: Exited normally." % self.name
             else:
-                return "%s: Exited abnormally with status %d." % (name, self._es)
+                return "%s: Exited abnormally with status %d." % (self.name, self._status)
         elif self.state == 2:
-            return "%s is stopped." % (name)
+            return "%s is stopped." % self.name
         elif self.state == 3:
-            return "%s exited by signal %d. " % (name, self.termsig)
+            return "%s exited by signal %d. " % (self.name, self.termsig)
         else:
             return "FIXME! unknown state"
 
