@@ -54,6 +54,9 @@ class Scheduler(object):
         self._timers = [None] * SIGMAX
         self._index = 1
 
+    def __bool__(self):
+        return any(self._timers)
+
     def add(self, callback, delay, interval=0, args=None, kwargs=None):
         """Add a callback with delay and interval.
         """
@@ -175,11 +178,17 @@ if __name__ == "__main__":
     import os
     def cb():
         print("cb called")
+    def cb2():
+        print("cb2 called")
     s = get_scheduler()
+    print("starting in 5 secs")
     h = s.add(cb, 5, 2)
+    h2 = s.add(cb2, 6, 2)
     #signal.pause()
     s.sleep(10)
     s.remove(h)
+    s.sleep(6)
+    s.remove(h2)
     print("done")
 
 

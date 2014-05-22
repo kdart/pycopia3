@@ -215,8 +215,12 @@ class Poll(object):
             callback(self)
 
     def unregister_all(self):
-        for obj in list(self.smap.values()):
-            self.unregister(obj)
+        m = self.smap.copy()
+        for key, obj in m.items():
+            if obj is not None:
+                self.unregister(obj)
+            else:
+                self.unregister_fd(key)
         self._fd_callbacks = {}
         self._idle_callbacks = {}
 
