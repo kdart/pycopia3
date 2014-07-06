@@ -4,14 +4,17 @@
 import sys
 
 from setuptools import setup
+from distutils.extension import Extension
 from glob import glob
 
 NAME = "pycopia3-core"
 VERSION = "1.0"
 
+EXTENSIONS = []
 
 if sys.platform.startswith("linux"):
     DATA_FILES = [('/etc/pycopia', glob("etc/*"))]
+    EXTENSIONS.append(Extension('pycopia.netstring', ['netstring.c']))
 else:
     DATA_FILES = []
 
@@ -28,11 +31,12 @@ setup (name=NAME, version=VERSION,
     "pycopia.OS.Linux.proc",
     "pycopia.OS.Linux.proc.net",
     ],
+    ext_modules = EXTENSIONS,
 #    install_requires = ['pycopia-utils>=1.0.dev-r138,==dev'],
     package_data = {
         '': ['*.txt', '*.doc'],
     },
-    test_suite = "test.CoreTests",
+    test_suite = "test",
     data_files = DATA_FILES,
     scripts = glob("bin/*"),
     zip_safe = False,

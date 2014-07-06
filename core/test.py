@@ -16,6 +16,11 @@
 
 import os
 import time
+import sys
+import socket
+import string
+import threading
+import queue
 
 now = time.time
 
@@ -187,6 +192,54 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(counters[2], 6)
         self.assertEqual(counters[3], 2)
         self.assertEqual(counters[4], 1)
+
+
+class NetstringTests(unittest.TestCase):
+
+    SOCKPATH="/tmp/testsock"
+
+
+    def setUp(self):
+        s = string.ascii_letters*50
+        self.source_bytes = s.encode("ascii")
+
+    def test_encode(self):
+        bs = self.source_bytes
+        bs_netstring = netstring.encode(bs)
+        d = netstring.decode(bs_netstring)
+        self.assertEqual(len(bs), len(d))
+        self.assertEqual(bs, d)
+
+    def test_null(self):
+        b2 = b"abcd\0efg"
+        self.assertEqual(b2, netstring.decode(netstring.encode(b2)))
+
+    def test_socket(self):
+        bs = self.source_bytes
+        q = queue.Queue()
+        t = threading.Thread(target=_netstring_listener, args=(self.SOCKPATH, q), daemon=True)
+        t.start()
+        time.sleep(1)
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, 0)
+        sock.connect(self.SOCKPATH)
+        bs_netstring = netstring.encode(bs)
+        sock.send(bs_netstring)
+        db = q.get()
+        q.task_done()
+        sock.close()
+        t.join()
+        self.assertEqual(netstring.decode(bs_netstring), db)
+
+def _netstring_listener(path, q):
+    os.unlink(path) if os.path.exists(path) else None
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, 0)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(path)
+    sock.listen(5)
+    news, addr = sock.accept()
+    db = netstring.decode_stream(news)
+    sock.close()
+    q.put(db)
 
 
 
