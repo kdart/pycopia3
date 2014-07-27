@@ -32,6 +32,7 @@ netstring_encode(PyObject *self, PyObject *args)
     Py_ssize_t srclen;
     PyObject *dst = NULL;
     char *dstbuf;
+    int o;
 
     if (PyArg_UnpackTuple(args, "src", 1, 1, &src)) {
         if (PyBytes_Check(src)) {
@@ -41,7 +42,7 @@ netstring_encode(PyObject *self, PyObject *args)
             if (!dst)
                 return NULL;
             dstbuf = PyBytes_AS_STRING(dst);
-            int o = sprintf(dstbuf, "%lu:", (unsigned long) srclen);
+            o = sprintf(dstbuf, "%lu:", (unsigned long) srclen);
             memcpy((void *) dstbuf + o, (void *) srcbuf, (size_t) srclen);
             o += srclen;
             dstbuf[o++] = ',';
@@ -128,6 +129,7 @@ netstring_decode_stream(PyObject *self, PyObject *args)
     char *bp;
     ssize_t rcvlen;
     unsigned long slen;
+    int o;
 
     if (PyArg_UnpackTuple(args, "stream", 1, 1, &stream)) {
         if ((sockfd = PyObject_AsFileDescriptor(stream)) < 0) {
@@ -139,7 +141,7 @@ netstring_decode_stream(PyObject *self, PyObject *args)
         if (rcvlen < 0) {
             return PyErr_SetFromErrno(PyExc_IOError);
         }
-        int o = sscanf(buf, "%21lu:",&slen);
+        o = sscanf(buf, "%21lu:",&slen);
         if (o == EOF) {
             return PyErr_SetFromErrno(PyExc_OSError);
         }
