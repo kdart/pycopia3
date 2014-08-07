@@ -5,16 +5,16 @@ The Pycopia package is a collection of Python (and some C) modules for use in
 Python  applications. There is support for network management, "Web" frontends,
 XML processing, process control, and more.
 
-This version, pycopia 3, is a redesign using Python 3.4.
-
+This version, pycopia3, is a redesign of
+[Pycopia](https://code.google.com/p/pycopia/) using Python 3.4.  That framework
+was developed for Python 2.7, and contains a lot of functionality that was
+later added to standard Python over time (but implemented differently). So this
+port also adopts some of the newer functionality found in Python3.4 and later.
 
 Some noteworthy sub-packages and modules:
 
-aid           -- Generally useful enhancements for Python, some being
-		 enhancements to Python standard library modules.
-
-core, util    -- More generally useful enhancements for Python. These provide
-		 base functionality for subsequent Pycopia3 packages.
+core, util    -- Some general purpose modules, such as OS device interfaces,
+                 protocol modules, and more.
 
 CLI           -- Toolkit for making interactive command tools fast and easy.
 
