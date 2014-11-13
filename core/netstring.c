@@ -1,17 +1,19 @@
-
-/* Use this file as a template to start implementing a module that
-   also declares object types. All occurrences of 'Xxo' should be changed
-   to something reasonable for your objects. After that, all other
-   occurrences of 'xx' should be changed to something reasonable for your
-   module. If your module is named decode your sourcefile should be named
-   foomodule.c.
-
-   You will probably want to delete all references to 'x_attr' and add
-   your own types of attributes instead.  Maybe you want to name your
-   local variables other than 'self'.  If your object type is needed in
-   other files, you'll have to create a file "foobarobject.h"; see
-   floatobject.h for an example. */
-
+/* Python module that implements netstring encoding and decoding.
+ * vim:ts=4:sw=4
+ *
+ * Copyright (C) 2012- Keith Dart <keith@dartworks.biz>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ */
 
 #include <stddef.h>
 #include <sys/socket.h>
@@ -22,7 +24,7 @@
 PyDoc_STRVAR(netstring_encode_doc,
 "encode(b)\n\
 \n\
-Return a bytes that encodeds the given byte string.");
+Return a bytes object that encodeds the given byte string.");
 
 static PyObject *
 netstring_encode(PyObject *self, PyObject *args)

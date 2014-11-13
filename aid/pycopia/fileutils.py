@@ -79,7 +79,7 @@ def mode2flags(mode):
 
 
 # cache of O_ flags
-_OLIST = filter(lambda n: n.startswith("O_"), dir(os))
+_OLIST = [n for n in dir(os) if n.startswith("O_")]
 
 def flag_string(fd):
     """flag_string(fd)
@@ -87,7 +87,7 @@ def flag_string(fd):
     flags as a vertical bar (|) delimited string.
     """
     flags = fcntl.fcntl(fd, fcntl.F_GETFL)
-    strlist = filter(None, map(lambda n: (flags & getattr(os, n)) and n, _OLIST))
+    strlist = [_f for _f in [(flags & getattr(os, n)) and n for n in _OLIST] if _f]
     # hack to accomodate the fact that O_RDONLY is not really a flag...
     if not (flags & os.ACCMODE):
         strlist.insert(0, "O_RDONLY")

@@ -1,7 +1,7 @@
 #!/usr/bin/python3.4
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
 #
-#    Copyright (C) 1999-2012  Keith Dart <keith@kdart.com>
+#    Copyright (C) 1999-  Keith Dart <keith@kdart.com>
 #
 #    This library is free software; you can redistribute it and/or
 #    modify it under the terms of the GNU Lesser General Public
@@ -18,9 +18,11 @@ A library for scheduling callback functions using timers and realtime signals.
 
 """
 
-__all__ = ["get_scheduler", "del_scheduler", "alarm", "sleep"]
+__all__ = ['TimeoutError', 'SchedulerError', 'Scheduler', 'get_scheduler', 'del_scheduler',
+        'timeout', 'iotimeout', 'add', 'repeat']
 
 import signal
+from functools import partial
 
 from pycopia import timers
 
@@ -35,15 +37,6 @@ class SchedulerError(Exception):
     pass
 
 SIGMAX = signal.SIGRTMAX - signal.SIGRTMIN
-
-class _Callback:
-    def __init__(self, callback, args, kwargs):
-        self.callback = callback
-        self.args = args or ()
-        self.kwargs = kwargs or {}
-
-    def __call__(self, sig, stack):
-        self.callback(*self.args, **self.kwargs)
 
 
 class Scheduler(object):
@@ -60,14 +53,16 @@ class Scheduler(object):
     def add(self, callback, delay, interval=0, args=None, kwargs=None):
         """Add a callback with delay and interval.
         """
+        args = args or ()
+        kwargs = kwargs or {}
         index = self._index + 1
         if index > SIGMAX:
             raise SchedulerError("Maximum timed events reached")
         signum = signal.SIGRTMIN+index
-        oldhandler = signal.signal(signum, _Callback(callback, args, kwargs))
+        oldhandler = signal.signal(signum, partial(callback, *args, **kwargs))
         signal.siginterrupt(signum, False)
         timer = timers.IntervalTimer(signum)
-        timer.settime(delay, interval)
+        timer.settime(float(delay), float(interval))
         self._timers[index] = (timer, oldhandler)
         self._index = index
         return index
@@ -80,7 +75,7 @@ class Scheduler(object):
             timer, oldhandler = self._timers[handle]
         except (ValueError, IndexError, TypeError):
             raise SchedulerError("Bad handle to remove")
-        timer.settime(0)
+        timer.settime(0.0)
         self._timers[handle] = None
         signal.signal(timer.signo, oldhandler)
 
@@ -107,14 +102,14 @@ class Scheduler(object):
         reached before the function exits.
         """
         signum = signal.SIGRTMIN
-        oldhandler = signal.signal(signum, _Callback(self._timeout_cb, args, kwargs))
+        oldhandler = signal.signal(signum, partial(self._timeout_cb, *args, **kwargs))
         signal.siginterrupt(signum, False)
         timer = timers.IntervalTimer(signum)
-        timer.settime(timeout)
+        timer.settime(float(timeout))
         try:
             return function(*args, **kwargs)
         finally:
-            timer.settime(0)
+            timer.settime(0.0)
             signal.signal(signum, oldhandler)
 
     def iotimeout(self, function, args=(), kwargs=None, timeout=30):
@@ -125,7 +120,7 @@ class Scheduler(object):
         oldhandler = signal.signal(signum, self._timedio_cb)
         signal.siginterrupt(signum, True)
         timer = timers.IntervalTimer(signum)
-        timer.settime(timeout)
+        timer.settime(float(timeout))
         try:
             while 1:
                 try:
@@ -136,7 +131,7 @@ class Scheduler(object):
                     else:
                         continue
         finally:
-            timer.settime(0)
+            timer.settime(0.0)
             signal.signal(signum, oldhandler)
 
     def _timedio_cb(self):

@@ -1,7 +1,5 @@
-#!/usr/bin/python3
+#!/usr/bin/python3.4
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
-#
-#    Copyright (C) 2012 Keith Dart <keith@dartworks.biz>
 #
 #    This library is free software; you can redistribute it and/or
 #    modify it under the terms of the GNU Lesser General Public
@@ -134,10 +132,10 @@ def exception_warning(prefix):
 # compatibility functions
 
 def msg(source, *msg):
-    info("{0!s} ** {1!r}".format(source, " ".join(msg)))
+    info("{0!s}: {1}".format(source, " ".join(str(o) for o in msg)))
 
 def _encode(s):
-    return s.encode("ascii").replace("\r\n", " ")
+    return s.replace("\r\n", " ")
 
 # Allow use of names, and useful aliases, to select logging level.
 LEVELS = {
@@ -154,7 +152,7 @@ LEVELS = {
 }
 
 
-class LogLevel(object):
+class LogLevel:
     """Context manager to run a block of code at a specific log level.
 
     Supply the level name as a string.

@@ -1,0 +1,21 @@
+<glade-catalog name="pycopia.QA.gui.widgets" library="gladepython" domain="gladepython" supports="gtkbuilder" depends="gtk+">
+ <init-function>glade_python_init</init-function>
+ <glade-widget-classes>
+   <glade-widget-class title="FigureCanvas" name="FigureCanvas" generic-name="figurecanvas"/>
+   <glade-widget-class title="NavigationToolbar" name="NavigationToolbar" generic-name="navigationtoolbar"/>
+   <glade-widget-class title="PycopiaCanvas" name="PycopiaCanvas" generic-name="pycopiacanvas">
+      <properties>
+        <property id="anchor" name="Anchor">
+          <tooltip>Where to place the canvas when it is smaller than the widget's allocated area.</tooltip>
+        </property>
+      </properties>
+   </glade-widget-class>
+ </glade-widget-classes>
+
+ <glade-widget-group name="pycopia" title="Pycopia">
+   <glade-widget-class-ref name="FigureCanvas"/>
+   <glade-widget-class-ref name="NavigationToolbar"/>
+   <glade-widget-class-ref name="PycopiaCanvas"/>
+ </glade-widget-group>
+</glade-catalog>
+

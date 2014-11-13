@@ -1,0 +1,68 @@
+
+span.editable {
+  color: #0F4C00;
+  background-color: #F4DBFF;
+  padding: 2px 5px 2px 5px;
+}
+
+span.clickable {
+  cursor: pointer;
+  color: #2222AA;
+}
+
+span.clickable:hover {
+  color: #3333FF;
+}
+
+ul.draglist { 
+  font-size:9pt; 
+  min-height: 4em;
+  min-width: 25em;
+  float:right; 
+  cursor: move;
+  padding: 2px 2px 2px 2px;
+  border: 2px solid #FFFFFF;
+  margin: 2px 2px 2px 2px;
+}
+
+ul.dragtarget { 
+  border: 2px dotted  #AA8888;
+}
+
+ul.draglist li { 
+  list-style-type: none; 
+  padding: 2px 2px 2px 2px;
+  border: thin solid silver;
+  margin: 2px 2px 2px 2px;
+}
+
+td>ul.draglist {
+  float: none;
+}
+
+ul.selectlist { 
+  float:left; 
+  padding: 10px 10px 10px 20px;
+  margin: 5px;
+}
+ul.selectlist li { 
+  list-style-type: disc; 
+  line-height:2em;
+}
+
+ul.selectlist li:hover { 
+  list-style-image: url(/media/images/icon_deletelink.png); /* 10x10 */
+}
+
+
+input[name="currentedit"] {
+    width: 80%;
+}
+
+
+p.error {
+  padding: 1em;
+  color: #FF0000;
+}
+
+

@@ -24,7 +24,7 @@ alphanumeric = lowercase + uppercase + digits
 whitespace = ' \t\n\r\v\f'
 punctuation = """!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"""
 printable = digits + letters + punctuation + whitespace
-control = "".join(map(chr, range(32))) + chr(127)
+control = "".join(map(chr, list(range(32)))) + chr(127)
 ascii = control + " " + digits + letters + punctuation
 
 CR   = "\r"

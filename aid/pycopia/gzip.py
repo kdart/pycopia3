@@ -69,7 +69,7 @@ class GzipHeader(object):
         self.method = 8 # one byte
         self.flags = 0 # one byte
         self.text = 0 # represents FTEXT flag
-        self.mtime = long(time.time()) # four bytes
+        self.mtime = int(time.time()) # four bytes
         self.extraflag = 0 # one byte
         self.os = 255 # one byte, default unknown
         self.extra = "" # variable (not implemented)

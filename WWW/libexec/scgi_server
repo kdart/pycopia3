@@ -1,0 +1,9 @@
+#!/usr/bin/python3.4 -OOu
+# vim:ts=4:sw=4:softtabstop=0:smarttab
+
+
+import sys
+from pycopia.WWW import scgiserver
+
+sys.exit(scgiserver.run_server(sys.argv))
+

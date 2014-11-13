@@ -1,0 +1,41 @@
+#!/sbin/runscript
+# vim:ts=8:sw=8:softtabstop=0:smarttab:ft=sh
+
+description="Control the Pyro name server as used by Pycopia.QA."
+
+depend() {
+	need net
+	use dns logger
+	provide pyro-ns
+}
+
+PIDFILE=/var/run/${SVCNAME}.pid
+
+PYRO_CONFIG_FILE=${NS_CONFIG_FILE:-"/etc/pycopia/pyro4.conf"}
+export PYRO_CONFIG_FILE
+
+
+checkconfig() {
+	if [ ! -f $PYRO_CONFIG_FILE ] ; then
+		eerror "Please create $PYRO_CONFIG_FILE config file first."
+		return 1
+	fi
+	return 0
+}
+
+start() {
+	checkconfig || return $?
+	ebegin "Starting ${SVCNAME}"
+	start-stop-daemon --start -m -b -p $PIDFILE \
+	--user ${NS_USER:-tester}:${NS_GROUP:-testers} \
+	-- qanameserverd -n < /dev/null
+	eend $?
+}
+
+stop() {
+	checkconfig || return $?
+	ebegin "Stopping ${SVCNAME}"
+	start-stop-daemon --stop --pidfile $PIDFILE
+	eend $?
+}
+

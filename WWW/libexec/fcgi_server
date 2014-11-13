@@ -1,0 +1,8 @@
+#!/usr/bin/python3.4 -OOu
+# vim:ts=4:sw=4:softtabstop=0:smarttab
+
+
+from pycopia.WWW import fcgiserver
+
+sys.exit(fcgiserver.run_server(sys.argv))
+

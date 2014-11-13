@@ -415,7 +415,9 @@ class AsyncServerHandler(PollerInterface):
             self._sock = None
             s.close()
 
-    closed = property(lambda self: bool(self._sock))
+    @property
+    def closed(self):
+        return bool(self._sock)
 
     def readable(self):
         return True
@@ -453,7 +455,9 @@ class AsyncWorkerHandler(PollerInterface):
             s.close()
             self._state = CLOSED
 
-    closed = property(lambda self: self._state == CLOSED)
+    @property
+    def closed(self):
+        return self._state == CLOSED
 
     def write(self, data):
         self._buf += data
@@ -525,7 +529,9 @@ class AsyncClientHandler(PollerInterface):
             s.close()
             self._state = CLOSED
 
-    closed = property(lambda self: self._state == CLOSED)
+    @property
+    def closed(self):
+        return self._state == CLOSED
 
     def write(self, data):
         self._buf += data

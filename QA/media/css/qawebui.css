@@ -1,0 +1,312 @@
+
+html,body {margin:10px; padding:2px}
+body {font-family: Helvetica, sans-serif;}
+
+a {
+  text-decoration: none;
+}
+
+div.navigation {
+    border-style:outset;
+    background: lightBlue;
+    border-color: darkBlue;
+    padding: 3px;
+    border-width:5px;
+    margin-bottom: 10px;
+}
+
+div.navigation p {
+  width: 33%;
+  display: inline-block;
+  text-align: center;
+}
+
+p.title {
+  font-weight: bold;
+}
+
+div.testcasebody {
+  margin-left: 0.5in;
+}
+
+img { 
+  border:none; 
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+table {
+  width: 100%;
+  border:outset ;
+  border-color:#CCC; 
+}
+
+table caption {
+  font-weight: bold;
+  text-align:left; 
+  font-size:110%; 
+  margin:5px; 
+}
+
+
+tr.row1 {
+  background-color: #FFF4B3;
+}
+
+tr.row2 {
+  background-color: #FFFAD9;
+}
+
+table.rowdisplay td  {
+    padding-top: 5px;
+}
+
+
+table tr th {
+  background-color: #FFE65C;
+  text-align:left; 
+  font-size:12px; 
+  font-weight:bold; 
+}
+
+table tr td {
+  font-size:12px; 
+}
+
+
+p.error {
+  padding: 1em;
+  color: #FF0000;
+}
+
+tr td:first-child, tr th:first-child { width: 100px; }
+
+h1, h2, h3, h4, h5, h6 {
+    background: transparent;
+    text-decoration: none;
+    color: #003163;
+}
+
+h1 {
+    font-size: 135%;
+}
+
+h2 {
+    margin-top: 1em;
+    font-size: 115%;
+}
+
+h3 {
+    margin-top: 1em;
+}
+
+fieldset {
+  background-color: #FFFAD9;
+}
+
+fieldset>legend {
+    font-weight:bold;
+}
+
+fieldset input[type="text"] {
+    width: 70%;
+    margin-bottom: 5px;
+}
+
+fieldset label {
+    display: inline-block;
+    font-weight:bold;
+    width: 20%;
+}
+
+fieldset select {
+    width: 50em;
+    margin-bottom: 5px;
+}
+
+input[type="radio"] {
+    display: inline;
+    margin-right: 20px;
+}
+
+input.ARRAY {
+}
+
+input.BIGINT {
+  background-color: #EEFFB3;
+}
+
+input.BINARY {
+}
+
+input.BIT {
+}
+
+input.BOOLEAN {
+  background-color: #F2F345;
+  width: auto;
+}
+
+input.CHAR {
+  background-color: #EEBBBB;
+}
+
+input.Cidr {
+  background-color: #F2E345;
+}
+
+input.DATE {
+    background-color: #A0DFF1;
+}
+
+input.TIMESTAMP {
+    background-color: #A0DFF1;
+}
+
+input.FLOAT {
+  background-color: #EEFFB3;
+}
+
+input.Inet {
+  background-color: #F2E345;
+}
+
+input.INTEGER {
+  background-color: #EEFFB3;
+}
+
+input.INTERVAL {
+    background-color: #A0DFF1;
+}
+
+input.MACADDR {
+    background-color: #C9B912;
+}
+
+input.NUMERIC {
+  background-color: #EEFFB3;
+}
+
+input.SMALLINT {
+  background-color: #EEFFB3;
+}
+
+input.VARCHAR {
+  background-color: #DDBBBB;
+}
+
+textarea.TEXT {
+    width: 100%;
+}
+
+input.TIME {
+    background-color: #A0DFF1;
+}
+
+input.UUID {
+}
+
+fieldset.ValueType label {
+    display: inline;
+    font-weight: normal;
+    width: auto;
+    margin-left:1em;
+}
+
+fieldset.TestCaseStatus label {
+    display: inline;
+    font-weight: normal;
+    width: auto;
+    margin-left:1em;
+}
+
+fieldset.TestCaseType label {
+    display: inline;
+    font-weight: normal;
+    width: auto;
+    margin-left:1em;
+}
+
+fieldset.PriorityType label {
+    display: inline;
+    font-weight: normal;
+    width: auto;
+    margin-left:1em;
+}
+
+fieldset.SeverityType label {
+    display: inline;
+    font-weight: normal;
+    width: auto;
+    margin-left:1em;
+}
+
+fieldset.LikelihoodType label {
+    display: inline;
+    font-weight: normal;
+    width: auto;
+    margin-left:1em;
+}
+
+fieldset.radioset label {
+    display: inline;
+    font-weight: normal;
+    width: auto;
+    margin-left:1em;
+}
+
+fieldset.radioset input {
+    width:auto;
+}
+
+fieldset.radioset input {
+    width:auto;
+}
+
+fieldset.yes_no label, fieldset.yes_no input {
+    display: inline;
+    font-weight: bold;
+    width: auto;
+    margin-left:2em;
+}
+
+input:focus {
+    border-width: 2px;
+    border-color: black;
+}
+
+input[type="submit"] {
+    background-color:#BBFFBB;
+    font-weight:bold;
+    margin-top:10px;
+    width:100%;
+    padding:4px;
+}
+
+input:hover[type="submit"] { 
+  background-color: #AAEEAA;
+}
+
+hr {color: silver; width: 80%;}
+
+
+select.draglist { 
+  width:100%; 
+  float:right; 
+  cursor: move;
+  padding: 2px 2px 2px 2px;
+  border: 2px solid #FFFFFF;
+  margin: 2px 2px 2px 2px;
+}
+
+select.dragtarget { 
+  border: 2px dotted  #AA8888;
+}
+
+select.draglist option { 
+  list-style-type: none; 
+  padding: 2px 2px 2px 2px;
+  border: thin solid silver;
+  margin: 2px 2px 2px 2px;
+}
+

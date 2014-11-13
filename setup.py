@@ -90,7 +90,7 @@ PACKAGES = [
 #"audio",
 #"XML",
 #"WWW",
-#"QA",
+"QA",
 #"vim",
 #"doc",
 ]

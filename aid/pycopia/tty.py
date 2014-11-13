@@ -457,7 +457,7 @@ automatically adjusts output according to screen size.  """
     # user input
     def raw_input(self, prompt=""):
         self._writtenlines = 0
-        return input(prompt)
+        return eval(input(prompt))
     user_input = raw_input
 
 

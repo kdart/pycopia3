@@ -79,7 +79,6 @@ attributes cannot be added, but existing ones may be changed."""
 
     __getattr__ = __getitem__
     __setattr__ = __setitem__
-#    __delattr__ = __delitem__
 
     def lock(self):
         dict.__setattr__(self, "_locked", 1)

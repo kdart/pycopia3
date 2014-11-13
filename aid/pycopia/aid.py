@@ -19,8 +19,8 @@ general enough to be new built-ins.
 """
 
 import sys
+import codecs
 from math import ceil
-from collections import deque
 
 
 class NULLType(type):
@@ -33,7 +33,7 @@ class NULLType(type):
         return ""
     def __repr__(self):
         return "NULL"
-    def __nonzero__(self):
+    def __bool__(self):
         return False
     def __len__(self):
         return 0
@@ -80,7 +80,7 @@ class Enums(list):
                 self.append(val)
             else:
                 self.append(Enum(i, str(val)))
-        for name, value in kwinit.items():
+        for name, value in list(kwinit.items()):
             enum = Enum(int(value), name)
             self.append(enum)
         self._mapping = None
@@ -89,8 +89,9 @@ class Enums(list):
     def __repr__(self):
         return "{}({})".format(self.__class__.__name__, list.__repr__(self))
 
-    # works nicely with WWW framework.
-    choices = property(lambda s: map(lambda e: (int(e), str(e)), s))
+    @property
+    def choices(self):
+        return [(int(e), str(e)) for e in self]
 
     def find(self, value):
         """Find the Enum with the given value."""
@@ -98,9 +99,9 @@ class Enums(list):
         return self[i]
 
     def get_mapping(self):
-        """Returns the enumerations as a dictionary with naems as keys."""
+        """Returns the enumerations as a dictionary with names as keys."""
         if self._mapping is None:
-            d = dict(map(lambda it: (str(it), it), self))
+            d = dict([(str(it), it) for it in self])
             self._mapping = d
             return d
         else:
@@ -114,94 +115,6 @@ class Enums(list):
         except KeyError:
             raise ValueError("Enum string not found.")
 
-
-class unsigned(int):
-    """Emulate an fixed length, unsigned 32 bit integer."""
-    floor = 0
-    ceiling = 4294967295
-    bits = 32
-    _mask = 0xFFFFFFFF
-    def __new__(cls, val):
-        return int.__new__(cls, val)
-    def __init__(self, val):
-        if val < self.floor or val > self.ceiling:
-            raise OverflowError("value %s out of range for type %s" % (val, self.__class__.__name__))
-    def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, self)
-    def __add__(self, other):
-        return self.__class__(int.__add__(self, other))
-    def __sub__(self, other):
-        return self.__class__(int.__sub__(self, other))
-    def __mul__(self, other):
-        return self.__class__(int.__mul__(self, other))
-    def __floordiv__(self, other):
-        return self.__class__(int.__floordiv__(self, other))
-    def __mod__(self, other):
-        return self.__class__(int.__mod__(self, other))
-    def __divmod__(self, other):
-        return self.__class__(int.__divmod__(self, other))
-    def __pow__(self, other, modulo=None):
-        return self.__class__(int.__pow__(self, other, modulo))
-    def __lshift__(self, other):
-        return self.__class__(int.__lshift__(self, other) & self._mask)
-    def __rshift__(self, other):
-        return self.__class__(int.__rshift__(self, other))
-    def __and__(self, other):
-        return self.__class__(int.__and__(self, other))
-    def __xor__(self, other):
-        return self.__class__(int.__xor__(self, other))
-    def __or__(self, other):
-        return self.__class__(int.__or__(self, other))
-    def __div__(self, other):
-        return self.__class__(int.__div__(self, other))
-    def __truediv__(self, other):
-        return self.__class__(int.__truediv__(self, other))
-    def __neg__(self):
-        return self.__class__(int.__neg__(self))
-    def __pos__(self):
-        return self.__class__(int.__pos__(self))
-    def __abs__(self):
-        return self.__class__(int.__abs__(self))
-    def __invert__(self):
-        return self.__class__(int.__invert__(self))
-    def __radd__(self, other):
-        return self.__class__(int.__radd__(self, other))
-    def __rand__(self, other):
-        return self.__class__(int.__rand__(self, other))
-    def __rdiv__(self, other):
-        return self.__class__(int.__rdiv__(self, other))
-    def __rdivmod__(self, other):
-        return self.__class__(int.__rdivmod__(self, other))
-    def __rfloordiv__(self, other):
-        return self.__class__(int.__rfloordiv__(self, other))
-    def __rlshift__(self, other):
-        return self.__class__(int.__rlshift__(self, other))
-    def __rmod__(self, other):
-        return self.__class__(int.__rmod__(self, other))
-    def __rmul__(self, other):
-        return self.__class__(int.__rmul__(self, other))
-    def __ror__(self, other):
-        return self.__class__(int.__ror__(self, other))
-    def __rpow__(self, other):
-        return self.__class__(int.__rpow__(self, other))
-    def __rrshift__(self, other):
-        return self.__class__(int.__rrshift__(self, other))
-    def __rshift__(self, other):
-        return self.__class__(int.__rshift__(self, other))
-    def __rsub__(self, other):
-        return self.__class__(int.__rsub__(self, other))
-    def __rtruediv__(self, other):
-        return self.__class__(int.__rtruediv__(self, other))
-    def __rxor__(self, other):
-        return self.__class__(int.__rxor__(self, other))
-
-
-class unsigned64(unsigned):
-    """Emulate an unsigned 64-bit integer."""
-    floor = 0
-    ceiling = 18446744073709551615
-    bits = 64
-    _mask = 0xFFFFFFFFFFFFFFFF
 
 class sortedlist(list):
     """A list that maintains a sorted order when appended to."""
@@ -247,112 +160,7 @@ def frange(limit1, limit2=None, increment=1.0):
   else:
     limit1 = float(limit1)
   count = int(ceil((limit2 - limit1)/increment))
-  return (limit1 + n*increment for n in xrange(0, count))
-
-class Queue(deque):
-    def push(self, obj):
-        self.appendleft(obj)
-
-class Stack(deque):
-    def push(self, obj):
-        self.append(obj)
-
-# a self-substituting string object. Just set attribute names to mapping names
-# that are given in the initializer string.
-class mapstr(str):
-    def __new__(cls, initstr, **kwargs):
-        s = str.__new__(cls, initstr)
-        return s
-    def __init__(self, initstr, **kwargs):
-        d = {}
-        for name in _findkeys(self):
-            d[name] = kwargs.get(name, None)
-        self.__dict__["_attribs"] = d
-    def __setattr__(self, name, val):
-        if name not in self.__dict__["_attribs"].keys():
-            raise AttributeError("invalid attribute name %r" % (name,))
-        self.__dict__["_attribs"][name] = val
-    def __getattr__(self, name):
-        try:
-            return self.__dict__["_attribs"][name]
-        except KeyError:
-            raise AttributeError("Invalid attribute %r" % (name,))
-    def __str__(self):
-        if None in self._attribs.values():
-            raise ValueError("one of the attributes %r is not set" % (self._attribs.keys(),))
-        return self % self._attribs
-    def __call__(self, **kwargs):
-        for name, value in kwargs.items():
-            setattr(self, name, value)
-        return self % self._attribs
-    def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, str.__repr__(self))
-    @property
-    def attributes(self):
-        return self._attribs.keys()
-
-import re
-_findkeys = re.compile(r"%\((\w+)\)").findall
-_findfkeys = re.compile(r"[^{]{(\w+)}").findall
-del re
-
-class formatstr(str):
-    """A string with format-style substitutions (limited to the form {name})
-    with attribute style setters, and inspection of defined substitutions (attributes).
-
-    >>> fms = formatstr("This is a {value}.")
-    >>> fms.value = "somevalue"
-    >>> print (fms)
-    >>> fms.value = "othervalue"
-    >>> print (fms)
-    """
-    def __new__(cls, initstr, **kwargs):
-        s = str.__new__(cls, initstr)
-        return s
-
-    def __init__(self, initstr, **kwargs):
-        d = {}
-        for name in _findfkeys(self):
-            d[name] = kwargs.get(name, None)
-        self.__dict__["_attribs"] = d
-
-    def __setattr__(self, name, val):
-        if name not in self.__dict__["_attribs"].keys():
-            raise AttributeError("invalid attribute name %r" % (name,))
-        self.__dict__["_attribs"][name] = val
-
-    def __getattr__(self, name):
-        try:
-            return self.__dict__["_attribs"][name]
-        except KeyError:
-            raise AttributeError("Invalid attribute %r" % (name,))
-
-    def __str__(self):
-        if None in self._attribs.values():
-            raise ValueError("one of the attributes %r is not set" % (self._attribs.keys(),))
-        return self.format(**self._attribs)
-
-    def __call__(self, **kwargs):
-        for name, value in kwargs.items():
-            self.__setattr__(name, value)
-        return self.format(**self._attribs)
-
-    def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, str.__repr__(self))
-
-    @property
-    def attributes(self):
-        return list(self._attribs.keys())
-
-
-def newclass(name, *bases, **attribs):
-    """Returns a new class with given name, bases and class attributes."""
-    class _NewType(type):
-        def __new__(cls):
-            return type.__new__(cls, str(name), bases, attribs)
-        def __init__(self, *args, **kwargs):
-            pass
-    return _NewType()
+  return (limit1 + n*increment for n in range(0, count))
 
 
 def debugmethod(meth):
@@ -365,6 +173,7 @@ def debugmethod(meth):
             from pycopia import debugger
             debugger.post_mortem(tb, ex, val)
     return _lambda
+
 
 def systemcall(meth):
     """Decorator to make system call methods safe from interrupted system calls."""
@@ -421,31 +230,6 @@ def removedups(s):
     return u
 
 
-def pprint_list(clist, indent=0, width=74):
-    """pprint_list(thelist, [indent, [width]])
-Prints the elements of a list to the screen fitting the most elements
-per line.  Should not break an element across lines. Sort of like word
-wrap for lists."""
-    indent = min(max(indent,0),width-1)
-    if indent:
-        print (" " * indent, end="")
-    print ("[", end="")
-    col = indent + 2
-    for c in clist[:-1]:
-        ps = "%r," % (c)
-        col = col + len(ps) + 1
-        if col > width:
-            print()
-            col = indent + len(ps) + 1
-            if indent:
-                print (" " * indent, end="")
-        print (ps, end="")
-    if col + len(clist[-1]) > width:
-        print()
-        if indent:
-            print (" " * indent, end="")
-    print ("%r ]" % (clist[-1],))
-
 def reorder(datalist, indexlist):
     """reorder(datalist, indexlist)
     Returns a new list that is ordered according to the indexes in the
@@ -472,32 +256,12 @@ def flatten(alist):
             rv.append(val)
     return rv
 
-def str2hex(s):
-    """Convert string to hex-encoded string."""
-    res = ["'"]
-    for c in s:
-        res.append("\\x%02x" % ord(c))
-    res.append("'")
-    return "".join(res)
-
 def hexdigest(s):
-    """Convert string to string of hexadecimal string for each character."""
-    return "".join(["%02x" % ord(c) for c in s])
+    """Convert bytes to string of hexadecimal string for each character."""
+    return codecs.encode(s, "hex").decode("ascii")
 
 def unhexdigest(s):
-    """Take a string of hexadecimal numbers (as ascii) and convert to binary string."""
-    l = []
-    for i in xrange(0, len(s), 2):
-        l.append(chr(int(s[i:i+2], 16)))
-    return "".join(l)
-
-def Import(modname):
-    """Improved __import__ function that returns fully initialized subpackages."""
-    try:
-        return sys.modules[modname]
-    except KeyError:
-        pass
-    __import__(modname)
-    return sys.modules[modname]
+    """Take a string of hexadecimal numbers and convert to binary string."""
+    return bytes.fromhex(s)
 
 

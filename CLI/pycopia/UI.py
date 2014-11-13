@@ -804,7 +804,7 @@ def _get_object(name):
 
 # construct a user interface from object names given as strings.
 def get_userinterface(uiname="UserInterface",
-                ioname="IO.ConsoleIO", themename=None):
+                ioname="pycopia.IO.ConsoleIO", themename=None):
     if type(ioname) is str:
         ioobj = _get_object(ioname)
     elif hasattr(ioname, "write"):

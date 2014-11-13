@@ -1,0 +1,28 @@
+#!/usr/bin/python3.4 -OO
+# vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
+# License: LGPL
+# Keith Dart <keith@dartworks.biz>
+
+from pycopia.QA import config
+from pycopia.QA import testrunner
+from pycopia.QA import jobrunner
+
+
+def runjobs(argv):
+    cfg = config.get_config()
+    tr = testrunner.TestRunner(cfg)
+    jri = jobrunner.JobRunnerInterface(tr)
+    try:
+        jri(argv)
+    except testrunner.TestRunnerError:
+        ex, val, tb = sys.exc_info()
+        if cfg.flags.DEBUG:
+            from pycopia import debugger
+            debugger.post_mortem(tb, ex, val)
+        else:
+            import traceback
+            traceback.print_exception(ex, val, tb)
+
+
+runjobs(sys.argv)
+
