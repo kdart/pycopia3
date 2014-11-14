@@ -144,6 +144,7 @@ class TestCase:
         # test elapsed time does not include initializer time.
         teststarttime = datetime.now()
         test_start.send(self, name=self.test_name, time=teststarttime)
+        rv = None
         try:
             rv = self.execute(*args, **kwargs)
         except KeyboardInterrupt:
@@ -456,9 +457,9 @@ class TestCase:
         args = args or ()
         kwargs = kwargs or {}
         try:
-            rv = method(*args, **kwargs)
+            method(*args, **kwargs)
         except exception:
-            return rv
+            return
         # it might raise another exception, which is marked INCOMPLETE
         raise TestFailError(msg or "%r did not raise %r." % (method, exception))
 
