@@ -1,0 +1,40 @@
+#:import os os
+
+<BoxLayout>:
+    padding: [5]
+
+<VerticalLayout@BoxLayout>:
+    padding: [5]
+    orientation: 'vertical'
+
+<HorizontalLayout@BoxLayout>:
+    padding: [5]
+    orientation: 'horizontal'
+
+<Output@TextInput>:
+    readonly: True
+    size_hint: 1, None
+
+<OutLabel@Label>:
+    halign: "right"
+    valign: "top"
+    size_hint: None, 0.1
+
+<StateLabel@Label>:
+    valign: "middle"
+    font_size: 14
+    size_hint: None, 0.1
+
+
+VerticalLayout:
+    GridLayout:
+        row_force_default: True
+        row_default_height: 40
+        cols: 2
+        rows: 2
+        size_hint: 0.2, None
+    Button:
+        text: "Hello"
+        on_press: app.do_hello()
+        background_color: .1, .9, 0.1, 1
+        size_hint: None, 0.1

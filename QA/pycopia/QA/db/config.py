@@ -1,7 +1,7 @@
-#!/usr/bin/python2.7
+#!/usr/bin/python3.4
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
 #
-#    Copyright (C) 2012  Keith Dart <keith@kdart.com>
+#    Copyright (C) 2014- Keith Dart <keith@dartworks.biz>
 #
 #    This library is free software; you can redistribute it and/or
 #    modify it under the terms of the GNU Lesser General Public
@@ -14,9 +14,8 @@
 #    Lesser General Public License for more details.
 
 """
-
-Pycopia Configuration and Information storage
----------------------------------------------
+Pycopia QA Configuration and Information storage
+------------------------------------------------
 
 Wrap the Config table in the database and make it look like a tree of
 name-value pairs (mappings).
@@ -30,16 +29,10 @@ The NULL object (from pycopia.aid) as value is used as a sentinal to signal a
 
 Containers can be owned by a user. New containers created by a user are owned
 by the same user. If a user with flag superuser creates a new container it is
-not owned by anybody (set the ownership as a separate operation). A superuser can
-see all containers, but non-superuser users only see their own containers.  New
-containers created without a registered user inherit ownership from parent
-node.
-
-"""
-
-
-
-
+not owned by anybody (set the ownership as a separate operation). A superuser
+can see all containers, but non-superuser users only see their own containers.
+New containers created without a registered user inherit ownership from parent
+node.  """
 
 import re
 
@@ -52,11 +45,6 @@ Config = models.Config
 
 
 
-def get_root():
-    c = Config.select().filter(
-            (Config.name=="root") & (Config.parent==None)).get()
-    return c
-
 
 class Container:
     """Make a relational table quack like a nested dictionary."""
@@ -68,19 +56,25 @@ class Container:
 
     def __str__(self):
         if self.node.value is NULL:
-            s = []
-            for ch in self.node.children:
-                s.append(str(ch))
+            s = [str(ch) for ch in self.node.children]
             return "(%s: %s)" % (self.node.name, ", ".join(s))
         else:
             return str(self.node)
 
     def __setitem__(self, name, value):
-        pass
+        try:
+            item = Config.select().where(
+                (Config.parent==self.node) & (Config.name==name)).get()
+        except models.DoesNotExist as err:
+            item = Config.create(parent=self.node, name=name, value=value,
+                    user=self._user, testcase=self._testcase)
+        else:
+            item.value = value
 
     def __getitem__(self, name):
         try:
-            item = Config.select().filter((Config.parent==self.node) & (Config.name==name)).get()
+            item = Config.select().where(
+                (Config.parent==self.node) & (Config.name==name)).get()
             if item.value is NULL:
                 return Container(item, user=self._user, testcase=self._testcase)
             else:
@@ -90,11 +84,13 @@ class Container:
                     "Container: No item {!r} found: {!s}".format(name, err))
 
     def __delitem__(self, name):
-        pass
-
-    @property
-    def value(self):
-        return self.node.value
+        try:
+            item = Config.select().where(
+                (Config.parent==self.node) & (Config.name==name)).get()
+            item.delete()
+        except models.DoesNotExist as err:
+            raise KeyError(
+                    "Container: No item {!r} found: {!s}".format(name, err))
 
     def get(self, key, default=None):
         try:
@@ -110,12 +106,12 @@ class Container:
             return default
 
     def keys(self):
-        #for item in Config.select().where((Config.parent==self.node) & (Config.value % NULL)):
         for item in Config.select().where(Config.parent==self.node):
             yield item.name
 
     def items(self):
-        for cf in Config.select(Config.name, Config.value).where(Config.parent==self.node):
+        for cf in Config.select(Config.name,
+                                Config.value).where(Config.parent==self.node):
             yield cf.name, cf.value
 
     def values(self):
@@ -123,11 +119,7 @@ class Container:
             yield item.value
 
     def add_container(self, name):
-        me = self.node
-        if me.value is NULL:
-            pass # TODO
-        else:
-            raise ConfigError("Cannot add container to value pair.")
+        self.__setitem__(name, NULL)
 
     def get_container(self, name):
         pass
@@ -141,13 +133,7 @@ class Container:
         return key in self
 
     def __iter__(self):
-        pass
-        #me = self.node
-        return self
-
-    def __next__(self):
-        pass
-    next = __next__
+        return self.keys()
 
     def __getattribute__(self, key):
         try:
@@ -227,15 +213,20 @@ def get_item(node, name):
     return Config.select().where((Config.parent==node) & (Config.name==name)).get()
 
 
+def get_root():
+    c = Config.select().filter(
+            (Config.name=="root") & (Config.parent==None)).get()
+    return c
+
 # entry point for basic configuration model.
-def get_config():
+def get_config(url=None):
+    models.connect(url)
     root = get_root()
     return Container(root)
 
 
 if __name__ == "__main__":
     from pycopia import autodebug
-    models.connect('postgresql://pycopia@localhost/pycopia')
     #r = get_root()
     #print(r)
     #print(r.get_child("flags"))

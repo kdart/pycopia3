@@ -57,6 +57,9 @@ class ModelError(Exception):
 class ModelAttributeError(ModelError):
     """Raised for errors related to models with attributes."""
 
+class ModelValidationError(ModelError):
+    """Raised when altering the database with invalid values."""
+
 # loader errors
 class LoaderError(Exception):
     """Base class for test loader errors."""

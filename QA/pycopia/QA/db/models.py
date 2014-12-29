@@ -12,23 +12,24 @@
 #    Lesser General Public License for more details.
 
 """
-Data model for QA framework. May also serve a base for lab management, since it contains complete
-information about all equipment and networks.
+Data model for QA framework. May also serve a base for lab management, since it
+contains complete information about all equipment and networks.
 """
 
 # Every table a QA framework could ever want. ;)
-TABLES = ['AccountIds', 'CountryCodes', 'Addresses', 'AttributeType', 'User', 'UserMessage',
-    'AuthGroup', 'AuthPermission', 'Contacts', 'Corporations', 'EquipmentCategory',
-    'EquipmentModel', 'Location', 'LanguageCodes', 'Equipment', 'CapabilityGroup', 'CapabilityType',
-    'ClientSession', 'Components', 'ProjectCategory', 'Projects', 'TestSuites', 'RequirementRef',
-    'TestCases', 'Config', 'CorpAttributeType', 'FunctionalArea', 'CorporationsServices',
-    'EnvironmentattributeType', 'Environments', 'Function', 'Software', 'InterfaceType', 'Networks',
-    'Interfaces', 'LanguageSets', 'ProjectVersions', 'RiskCategory', 'RiskFactors', 'Schedule',
-    'SoftwareVariant', 'TestJobs', 'TestResults', 'TestResultsData', 'Testequipment', 'UseCases']
+TABLES = ['AccountIds', 'CountryCodes', 'Addresses', 'AttributeType', 'User',
+    'UserMessage', 'AuthGroup', 'AuthPermission', 'Contacts', 'Corporations',
+    'EquipmentModel', 'Location', 'LanguageCodes', 'Equipment',
+    'ClientSession', 'Components', 'ProjectCategory', 'Projects', 'TestSuites',
+    'RequirementRef', 'TestCases', 'Config', 'CorpAttributeType',
+    'FunctionalArea', 'EnvironmentAttributeType',
+    'Environments', 'Function', 'Software', 'InterfaceType', 'Networks',
+    'Interfaces', 'LanguageSets', 'ProjectVersions', 'RiskCategory',
+    'RiskFactors', 'Schedule', 'SoftwareVariant', 'TestJobs', 'TestResults',
+    'TestResultsData', 'Testequipment', 'UseCases', ]
 
 __all__ = TABLES + ["get_rowdisplay"]
 
-import os
 import collections
 from datetime import datetime
 from hashlib import sha1
@@ -38,8 +39,10 @@ from pytz import timezone
 from peewee import *
 
 from pycopia import basicconfig
-from pycopia.aid import hexdigest, unhexdigest, NULL
-from pycopia.QA.exceptions import ModelError
+from pycopia.aid import hexdigest, unhexdigest, removedups, NULL
+from pycopia.QA.exceptions import (ModelError, ModelAttributeError,
+    ModelValidationError)
+from pycopia.QA import constants
 from pycopia.QA.db.fields import *
 
 
@@ -68,47 +71,63 @@ class AccountIds(BaseModel):
 
     class Meta:
         db_table = 'account_ids'
+        indexes = (
+            (("identifier",), True),
+        )
 
 
 class CountryCodes(BaseModel):
-    isocode = CharField(max_length=4)
+    isocode = CharField(max_length=4, unique=True)
     name = CharField(max_length=80)
 
     class Meta:
         db_table = 'country_codes'
 
+
 class Addresses(BaseModel):
     address = TextField()
     address2 = TextField(null=True)
     city = CharField(max_length=80, null=True)
+    stateprov = CharField(max_length=80, null=True)
     country = ForeignKeyField(db_column='country_id', null=True,
             rel_model=CountryCodes, to_field='id')
     postalcode = CharField(max_length=15, null=True)
-    stateprov = CharField(max_length=80, null=True)
 
     class Meta:
         db_table = 'addresses'
 
+
 class AttributeType(BaseModel):
     description = TextField(null=True)
-    name = CharField(max_length=80)
-    value_type = IntegerField()
+    name = CharField(max_length=80, unique=True)
+    value_type = EnumField(constants.ValueType)
 
     class Meta:
         db_table = 'attribute_type'
 
+    @classmethod
+    def get_by_name(cls, name):
+        try:
+            attrtype = cls.select().where(cls.name==str(name)).get()
+        except DoesNotExist:
+            raise ModelAttributeError("No attribute type {!r} defined.".format(name))
+        return attrtype
+
+    @classmethod
+    def get_attribute_list(cls):
+        return cls.select(cls.name, cls.value_type).tuples()
 
 class User(BaseModel):
     ROW_DISPLAY = ("username", "first_name", "last_name", "email")
+    username = CharField(max_length=30, unique=True)
     first_name = CharField(max_length=30)
     middle_name = CharField(max_length=30, null=True)
     last_name = CharField(max_length=30)
     address = ForeignKeyField(db_column='address_id', null=True, rel_model=Addresses, to_field='id')
-    username = CharField(max_length=30)
     _password = CharField(db_column="password", max_length=40, null=True)
     authservice = CharField(max_length=20)
     last_login = DateTimeField(default=time_now)
-    date_joined = DateTimeField()
+    date_joined = DateTimeField(default=time_now)
     email = CharField(max_length=75, null=True)
     is_active = BooleanField()
     is_staff = BooleanField()
@@ -192,209 +211,306 @@ class UserMessage(BaseModel):
 
 #### permissions
 class AuthGroup(BaseModel):
-    name = CharField(max_length=80)
+    name = CharField(max_length=80, unique=True)
     description = TextField()
 
     class Meta:
         db_table = 'auth_group'
 
 class AuthPermission(BaseModel):
-    name = CharField(max_length=50)
+    name = CharField(max_length=50, unique=True)
     description = TextField()
 
     class Meta:
         db_table = 'auth_permission'
 
+
 class _AuthGroupPermissions(BaseModel):
-    group = ForeignKeyField(db_column='group_id', rel_model=AuthGroup, to_field='id')
-    permission = ForeignKeyField(db_column='permission_id', rel_model=AuthPermission, to_field='id',
-            related_name="groups")
+    group = ForeignKeyField(db_column='group_id',
+            rel_model=AuthGroup, to_field='id')
+    permission = ForeignKeyField(db_column='permission_id',
+            rel_model=AuthPermission, to_field='id', related_name="groups")
 
     class Meta:
         db_table = 'auth_group_permissions'
+        primary_key = CompositeKey('group', 'permission')
+
 
 class _AuthUserUserPermissions(BaseModel):
-    permission = ForeignKeyField(db_column='permission_id', rel_model=AuthPermission, to_field='id',
-            related_name="users")
     user = ForeignKeyField(db_column='user_id', rel_model=User, to_field='id',
-            related_name="permissions", on_update="CASCADE", on_delete="CASCADE")
+            related_name="permissions",
+            on_update="CASCADE", on_delete="CASCADE")
+    permission = ForeignKeyField(db_column='permission_id',
+            rel_model=AuthPermission, to_field='id', related_name="users")
 
     class Meta:
         db_table = 'auth_user_user_permissions'
+        primary_key = CompositeKey('user', 'permission')
 
 class _AuthUserGroups(BaseModel):
-    group = ForeignKeyField(db_column='group_id', rel_model=AuthGroup, to_field='id')
     user = ForeignKeyField(db_column='user_id', rel_model=User, to_field='id',
             related_name="groups", on_update="CASCADE", on_delete="CASCADE")
+    group = ForeignKeyField(db_column='group_id',
+            rel_model=AuthGroup, to_field='id')
 
     class Meta:
         db_table = 'auth_user_groups'
+        primary_key = CompositeKey('user', 'group')
 ####
 
 class Contacts(BaseModel):
-    address = ForeignKeyField(db_column='address_id', null=True, rel_model=Addresses, to_field='id')
-    email = CharField(max_length=80, null=True)
-    fax = CharField(max_length=25, null=True)
-    firstname = CharField(max_length=50)
     lastname = CharField(max_length=50)
     middlename = CharField(max_length=50, null=True)
+    firstname = CharField(max_length=50)
+    prefix = CharField(max_length=15, null=True)
+    title = CharField(max_length=50, null=True)
+    position = CharField(max_length=100, null=True)
+    email = CharField(max_length=80, null=True)
     note = TextField(null=True)
-    pager = CharField(max_length=25, null=True)
     phonehome = CharField(max_length=25, null=True)
     phonemobile = CharField(max_length=25, null=True)
     phoneoffice = CharField(max_length=25, null=True)
     phoneother = CharField(max_length=25, null=True)
     phonework = CharField(max_length=25, null=True)
-    position = CharField(max_length=100, null=True)
-    prefix = CharField(max_length=15, null=True)
-    title = CharField(max_length=50, null=True)
+    pager = CharField(max_length=25, null=True)
+    fax = CharField(max_length=25, null=True)
+    address = ForeignKeyField(db_column='address_id', null=True, rel_model=Addresses, to_field='id')
     user = ForeignKeyField(db_column='user_id', null=True, rel_model=User, to_field='id',
             related_name="contacts", on_update="CASCADE", on_delete="SET NULL")
     class Meta:
         db_table = 'contacts'
+        indexes = (
+            (("lastname",), False),
+            )
 
 class Corporations(BaseModel):
-    address = ForeignKeyField(db_column='address_id', null=True, rel_model=Addresses, to_field='id')
-    contact = ForeignKeyField(db_column='contact_id', null=True, rel_model=Contacts, to_field='id',
-            related_name="corporations")
-    country = ForeignKeyField(db_column='country_id', null=True, rel_model=CountryCodes, to_field='id')
     name = CharField(max_length=255)
+    address = ForeignKeyField(db_column='address_id', null=True,
+            rel_model=Addresses, to_field='id')
+    contact = ForeignKeyField(db_column='contact_id', null=True,
+            rel_model=Contacts, to_field='id', related_name="corporations")
+    country = ForeignKeyField(db_column='country_id', null=True,
+            rel_model=CountryCodes, to_field='id')
     notes = TextField(null=True)
-    parent = ForeignKeyField(db_column='parent_id', null=True, rel_model='self', to_field='id')
+    parent = ForeignKeyField(db_column='parent_id', null=True,
+            rel_model='self', to_field='id')
 
     class Meta:
         db_table = 'corporations'
+        indexes = (
+            (("name",), False),
+            )
 
-class EquipmentCategory(BaseModel):
-    name = CharField(max_length=80)
+    def __str__(self):
+        return self.name
 
-    class Meta:
-        db_table = 'equipment_category'
 
 class EquipmentModel(BaseModel):
-    category = ForeignKeyField(db_column='category_id', rel_model=EquipmentCategory, to_field='id',
-            related_name="categories")
-    manufacturer = ForeignKeyField(db_column='manufacturer_id', rel_model=Corporations, to_field='id',
-            related_name="manufacturers")
+    ROW_DISPLAY = ("manufacturer", "name")
+    manufacturer = ForeignKeyField(db_column='manufacturer_id',
+            rel_model=Corporations, to_field='id',
+            related_name="products")
     name = CharField(max_length=255)
     note = TextField(null=True)
     picture = CharField(max_length=255, null=True)
     specs = CharField(max_length=255, null=True)
+    rackunits = IntegerField(null=True)
 
     class Meta:
         db_table = 'equipment_model'
+        indexes = (
+            (("name", "manufacturer"), True),
+            )
+
+    def __str__(self):
+        return self.name
+
+    def update_attribute(self, attrname, value):
+        attrtype = AttributeType.get_by_name(attrname)
+        EMA = _EquipmentModelAttributes
+        try:
+            existing = EMA.select().where((EMA.equipmentmodel==self) & (EMA.type==attrtype)).get()
+        except DoesNotExist:
+            self.set_attribute(attrname, value)
+        else:
+            with database.atomic():
+                existing.value = coerce_value_type(attrtype.value_type, value)
+
+    def set_attribute(self, attrname, value):
+        attrtype = AttributeType.get_by_name(attrname)
+        value = coerce_value_type(attrtype.value_type, value)
+        with database.atomic():
+            _EquipmentModelAttributes(equipmentmodel=self, type=attrtype, value=value)
+
+    def get_attribute(self, attrname):
+        attrtype = AttributeType.get_by_name(attrname)
+        EMA = _EquipmentModelAttributes
+        try:
+            ea = EMA.select().where((EMA.equipmentmodel==self) & (EMA.type==attrtype)).get()
+        except DoesNotExist:
+            raise ModelAttributeError("No attribute {!r} set.".format(attrname))
+        return ea.value
+
+    def del_attribute(self, attrtype):
+        attrtype = AttributeType.get_by_name(attrname)
+        EMA = _EquipmentModelAttributes
+        try:
+            ea = EMA.select().where((EMA.equipmentmodel==self) & (EMA.type==attrtype)).get()
+        except DoesNotExist:
+            pass
+        else:
+            with database.atomic():
+                ea.delete()
+
 
 class Location(BaseModel):
-    address = ForeignKeyField(db_column='address_id', null=True, rel_model=Addresses, to_field='id')
-    contact = ForeignKeyField(db_column='contact_id', null=True, rel_model=Contacts, to_field='id',
-            related_name="locations", on_update="CASCADE", on_delete="SET NULL")
+    address = ForeignKeyField(db_column='address_id', null=True,
+            rel_model=Addresses, to_field='id')
+    contact = ForeignKeyField(db_column='contact_id', null=True,
+            rel_model=Contacts, to_field='id', related_name="locations",
+            on_update="CASCADE", on_delete="SET NULL")
     locationcode = CharField(max_length=80)
 
     class Meta:
         db_table = 'location'
 
+
 class LanguageCodes(BaseModel):
-    isocode = CharField(max_length=6)
-    name = CharField(max_length=80)
+    name = CharField(max_length=80, unique=True)
+    isocode = CharField(max_length=6, unique=True)
 
     class Meta:
         db_table = 'language_codes'
 
+
 class Equipment(BaseModel):
-    account = ForeignKeyField(db_column='account_id', null=True, rel_model=AccountIds, to_field='id')
-    active = BooleanField()
-    addeddate = DateTimeField(null=True)
-    comments = TextField(null=True)
+    ROW_DISPLAY = ("name", "model", "serno")
+
+    name = CharField(max_length=255, unique=True)
+    serno = CharField(max_length=255, null=True)
+    model = ForeignKeyField(db_column='model_id',
+            rel_model=EquipmentModel, to_field='id',
+            related_name="equipment")
+    account = ForeignKeyField(db_column='account_id', null=True,
+            rel_model=AccountIds, to_field='id')
+    addeddate = DateTimeField(null=True, default=time_now)
+    location = ForeignKeyField(db_column='location_id', null=True,
+            rel_model=Location, to_field='id',
+            related_name="equipment")
+    sublocation = TextField(null=True)
+    owner = ForeignKeyField(db_column='owner_id', null=True,
+            rel_model=User, to_field='id', related_name="equipment",
+            on_update="CASCADE", on_delete="SET NULL")
+    parent = ForeignKeyField(db_column='parent_id', null=True,
+            rel_model='self', to_field='id')
+    vendor = ForeignKeyField(db_column='vendor_id', null=True,
+            rel_model=Corporations, to_field='id',
+            related_name="vended")
     language = ForeignKeyField(db_column='language_id', null=True,
             rel_model=LanguageCodes, to_field='id', related_name="equipment")
-    location = ForeignKeyField(db_column='location_id', null=True, rel_model=Location, to_field='id',
-            related_name="equipment")
-    model = ForeignKeyField(db_column='model_id', rel_model=EquipmentModel, to_field='id',
-            related_name="equipment")
-    name = CharField(max_length=255)
-    owner = ForeignKeyField(db_column='owner_id', null=True, rel_model=User, to_field='id',
-            related_name="equipment", on_update="CASCADE", on_delete="SET NULL")
-    parent = ForeignKeyField(db_column='parent_id', null=True, rel_model='self', to_field='id')
-    serno = CharField(max_length=255, null=True)
-    sublocation = TextField(null=True)
-    vendor = ForeignKeyField(db_column='vendor_id', null=True, rel_model=Corporations, to_field='id',
-            related_name="vended")
+    comments = TextField(null=True)
+    active = BooleanField(default=True)
 
     class Meta:
         db_table = 'equipment'
 
-class CapabilityGroup(BaseModel):
-    name = CharField(max_length=80)
+    def __str__(self):
+        return self.name
 
-    class Meta:
-        db_table = 'capability_group'
+    def update_attribute(self, attrname, value):
+        attrtype = AttributeType.get_by_name(attrname)
+        EA = _EquipmentAttributes
+        try:
+            existing = EA.select().where(
+                    (EA.equipment==self) & (EA.type==attrtype)).get()
+        except DoesNotExist:
+            self.set_attribute(attrname, value)
+        else:
+            with database.atomic():
+                existing.value = coerce_value_type(attrtype.value_type, value)
 
-class CapabilityType(BaseModel):
-    description = TextField(null=True)
-    group = ForeignKeyField(db_column='group_id', null=True, rel_model=CapabilityGroup, to_field='id',
-            related_name="capability_types", on_update="CASCADE", on_delete="CASCADE")
-    name = CharField(max_length=80)
-    value_type = IntegerField()
+    def set_attribute(self, attrname, value):
+        attrtype = AttributeType.get_by_name(attrname)
+        value = coerce_value_type(attrtype.value_type, value)
+        with database.atomic():
+            _EquipmentAttributes(equipment=self, type=attrtype, value=value)
 
-    class Meta:
-        db_table = 'capability_type'
+    def get_attribute(self, attrname):
+        attrtype = AttributeType.get_by_name(attrname)
+        EA = _EquipmentAttributes
+        try:
+            ea = EA.select().where((EA.equipment==self) & (EA.type==attrtype)).get()
+        except DoesNotExist:
+            raise ModelAttributeError("No attribute {!r} set.".format(attrname))
+        return ea.value
 
-class _Capability(BaseModel):
-    equipment = ForeignKeyField(db_column='equipment_id',
-            rel_model=Equipment, to_field='id', related_name="capabilities")
-    type = ForeignKeyField(db_column='type_id', rel_model=CapabilityType, to_field='id',
-            related_name="capabilities")
-    value = TextField()
+    def del_attribute(self, attrname):
+        attrtype = AttributeType.get_by_name(attrname)
+        EA = _EquipmentAttributes
+        try:
+            ea = EA.select().where((EA.equipment==self) & (EA.type==attrtype)).get()
+        except DoesNotExist:
+            pass
+        else:
+            with database.atomic():
+                ea.delete()
 
-    class Meta:
-        db_table = 'capability'
+    @staticmethod
+    def get_attribute_list():
+        return AttributeType.get_attribute_list()
+
 
 class ClientSession(BaseModel):
-    data = TextField()
+    """Persist browser-based application context."""
+    data = PickleField()
     expire_date = DateTimeField()
-    session_key = CharField(max_length=40, primary_key=True)
+    session_key = CharField(max_length=40, primary_key=True, unique=True)
 
     class Meta:
         db_table = 'client_session'
 
+
 class Components(BaseModel):
-    created = DateTimeField()
+    name = CharField(max_length=255, unique=True)
     description = TextField()
-    name = CharField(max_length=255)
+    created = DateTimeField(default=time_now)
 
     class Meta:
         db_table = 'components'
 
+
 class ProjectCategory(BaseModel):
-    name = CharField(max_length=80)
+    name = CharField(max_length=80, unique=True)
 
     class Meta:
         db_table = 'project_category'
 
+
 class Projects(BaseModel):
+    name = CharField(max_length=255, unique=True)
+    description = TextField()
+    created = DateTimeField(default=time_now)
     category = ForeignKeyField(db_column='category_id', null=True,
             rel_model=ProjectCategory, to_field='id', related_name="projects",
                     on_update="CASCADE", on_delete="SET NULL")
-    created = DateTimeField()
-    description = TextField()
-    leader = ForeignKeyField(db_column='leader_id', null=True, rel_model=Contacts, to_field='id',
-            related_name="projects")
-    name = CharField(max_length=255)
+    leader = ForeignKeyField(db_column='leader_id', null=True,
+            rel_model=Contacts, to_field='id', related_name="projects")
 
     class Meta:
         db_table = 'projects'
 
+
 class TestSuites(BaseModel):
-    lastchange = DateTimeField()
+    name = CharField(max_length=255, unique=True)
+    purpose = TextField(null=True)
+    lastchange = DateTimeField(default=time_now)
     lastchangeauthor = ForeignKeyField(db_column='lastchangeauthor_id', null=True,
             rel_model=User, to_field='id', related_name="testsuites",
             on_update="CASCADE", on_delete="SET NULL",
             )
-    name = CharField(max_length=255)
     project = ForeignKeyField(db_column='project_id', null=True,
             rel_model=Projects, to_field='id', related_name="testsuites",
             on_update="CASCADE", on_delete="SET NULL")
-    purpose = TextField(null=True)
     suiteimplementation = CharField(max_length=255, null=True)
     valid = BooleanField()
 
@@ -402,70 +518,93 @@ class TestSuites(BaseModel):
         db_table = 'test_suites'
 
 class _ComponentsSuites(BaseModel):
-    component = ForeignKeyField(db_column='component_id', rel_model=Components, to_field='id',
+    component = ForeignKeyField(db_column='component_id',
+            rel_model=Components, to_field='id',
             related_name="suites")
-    testsuite = ForeignKeyField(db_column='testsuite_id', rel_model=TestSuites, to_field='id',
+    testsuite = ForeignKeyField(db_column='testsuite_id',
+            rel_model=TestSuites, to_field='id',
             related_name="components")
 
     class Meta:
         db_table = 'components_suites'
+        primary_key = CompositeKey('component', 'testsuite')
+
 
 class RequirementRef(BaseModel):
+    ROW_DISPLAY = ("uri",)
+    uri = CharField(max_length=255)
     description = TextField(null=True)
-    uri = CharField(max_length=255, null=True)
 
     class Meta:
         db_table = 'requirement_ref'
 
+    def __str__(self):
+        return "Requirement: {}".format(self.uri)
+
+
 class TestCases(BaseModel):
-    author = ForeignKeyField(db_column='author_id', null=True, rel_model=User, to_field='id',
-            related_name="testcases_author", on_update="CASCADE", on_delete="SET NULL")
-    automated = BooleanField()
-    bugid = CharField(max_length=80, null=True)
-    comments = TextField(null=True)
-    cycle = IntegerField()
+    ROW_DISPLAY = ("name", "purpose", "testimplementation")
+
+    name = CharField(max_length=255, unique=True)
+    purpose = TextField(null=True)
+    passcriteria = TextField(null=True)
+    startcondition = TextField(null=True)
     endcondition = TextField(null=True)
+    procedure = TextField(null=True)
+    comments = TextField(null=True)
+    automated = BooleanField()
+    testimplementation = CharField(max_length=255, null=True)
+    type = EnumField(constants.TestCaseType)
+    priority = EnumField(constants.Priority)
+    status = EnumField(constants.Status)
     interactive = BooleanField()
     lastchange = DateTimeField(default=time_now)
+    bugid = CharField(max_length=80, null=True)
+    time_estimate = IntervalField(null=True)
+    valid = BooleanField()
+    author = ForeignKeyField(db_column='author_id', null=True,
+            rel_model=User, to_field='id', related_name="testcases_author",
+            on_update="CASCADE", on_delete="SET NULL")
     lastchangeauthor = ForeignKeyField(db_column='lastchangeauthor_id', null=True,
             rel_model=User, to_field='id', related_name="testcase_changes",
             on_update="CASCADE", on_delete="SET NULL")
-    name = CharField(max_length=255)
-    passcriteria = TextField(null=True)
-    priority = IntegerField()
-    procedure = TextField(null=True)
-    purpose = TextField(null=True)
     reference = ForeignKeyField(db_column='reference_id', null=True,
             rel_model=RequirementRef, to_field='id', related_name="testcases",
             on_update="CASCADE", on_delete="SET NULL")
-    reviewer = ForeignKeyField(db_column='reviewer_id', null=True, rel_model=User, to_field='id',
-            related_name="testcase_reviews",
+    reviewer = ForeignKeyField(db_column='reviewer_id', null=True,
+            rel_model=User, to_field='id', related_name="testcase_reviews",
             on_update="CASCADE", on_delete="SET NULL")
-    startcondition = TextField(null=True)
-    status = IntegerField()
-    tester = ForeignKeyField(db_column='tester_id', null=True, rel_model=User, to_field='id',
-            related_name="testcases_tester",
+    tester = ForeignKeyField(db_column='tester_id', null=True,
+            rel_model=User, to_field='id', related_name="testcases_tester",
             on_update="CASCADE", on_delete="SET NULL")
-    testimplementation = CharField(max_length=255, null=True)
-    #time_estimate = IntervalField(null=True)  # interval
-    valid = BooleanField()
 
     class Meta:
         db_table = 'test_cases'
+        indexes = (
+            (("testimplementation",), False),
+            )
+
+    def __str__(self):
+        return self.name
+
 
 class Config(BaseModel):
     ROW_DISPLAY = ("name", "value", "user")
-    comment = TextField(null=True)
     name = CharField(max_length=80)
-    parent = ForeignKeyField(db_column='parent_id', null=True, rel_model='self', to_field='id')
+    parent = ForeignKeyField(db_column='parent_id', null=True,
+            rel_model='self', to_field='id')
+    value = PickleField(null=True)
     testcase = ForeignKeyField(db_column='testcase_id', null=True,
             rel_model=TestCases, to_field='id', related_name="config")
-    user = ForeignKeyField(db_column='user_id', null=True, rel_model=User, to_field='id',
-            related_name="config", on_update="CASCADE", on_delete="CASCADE")
-    value = PickleField(null=True)
+    user = ForeignKeyField(db_column='user_id', null=True,
+            rel_model=User, to_field='id', related_name="config",
+            on_update="CASCADE", on_delete="CASCADE")
 
     class Meta:
         db_table = 'config'
+        indexes = (
+            (("name", "parent"), True),
+            )
 
     def __str__(self):
         if self.value is NULL:
@@ -493,105 +632,125 @@ class Config(BaseModel):
 
 
 class CorpAttributeType(BaseModel):
+    name = CharField(max_length=80, unique=True)
     description = TextField(null=True)
-    name = CharField(max_length=80)
-    value_type = IntegerField()
+    value_type = EnumField(constants.ValueType)
 
     class Meta:
         db_table = 'corp_attribute_type'
 
 class _CorpAttributes(BaseModel):
-    corporation = ForeignKeyField(db_column='corporation_id', rel_model=Corporations, to_field='id',
-            related_name="attributes")
-    type = ForeignKeyField(db_column='type_id', rel_model=CorpAttributeType, to_field='id')
-    value = TextField()
+    corporation = ForeignKeyField(db_column='corporation_id',
+            rel_model=Corporations, to_field='id', related_name="attributes")
+    type = ForeignKeyField(db_column='type_id',
+            rel_model=CorpAttributeType, to_field='id')
+    value = PickleField()
 
     class Meta:
         db_table = 'corp_attributes'
+        primary_key = CompositeKey('corporation', 'type')
 
 class FunctionalArea(BaseModel):
+    name = CharField(max_length=255, unique=True)
     description = CharField(max_length=255, null=True)
-    name = CharField(max_length=255)
 
     class Meta:
         db_table = 'functional_area'
 
-class CorporationsServices(BaseModel):
-    corporation = ForeignKeyField(db_column='corporation_id', rel_model=Corporations, to_field='id',
-            related_name="services")
-    functionalarea = ForeignKeyField(db_column='functionalarea_id', rel_model=FunctionalArea, to_field='id')
+    def __str__(self):
+        return "FunctionalArea: {}".format(self.name)
 
-    class Meta:
-        db_table = 'corporations_services'
 
-class EnvironmentattributeType(BaseModel):
+class EnvironmentAttributeType(BaseModel):
+    name = CharField(max_length=80, unique=True)
     description = TextField(null=True)
-    name = CharField(max_length=80)
-    value_type = IntegerField()
+    value_type = EnumField(constants.ValueType)
 
     class Meta:
         db_table = 'environmentattribute_type'
 
+
 class Environments(BaseModel):
-    name = CharField(max_length=255)
+    name = CharField(max_length=255, unique=True)
     owner = ForeignKeyField(db_column='owner_id', null=True, rel_model=User, to_field='id',
             related_name="environments", on_update="CASCADE", on_delete="SET NULL")
 
     class Meta:
         db_table = 'environments'
 
+    def get_supported_roles(self):
+        rv = []
+        for te in TestEquipment.select().where(TestEquipment.environment==self):
+            for role in te.roles:
+                rv.append(role.name)
+        return removedups(rv)
+
+
 class _EnvironmentAttributes(BaseModel):
     environment = ForeignKeyField(db_column='environment_id', rel_model=Environments, to_field='id')
-    type = ForeignKeyField(db_column='type_id', rel_model=EnvironmentattributeType, to_field='id')
-    value = TextField()
+    type = ForeignKeyField(db_column='type_id', rel_model=EnvironmentAttributeType, to_field='id')
+    value = PickleField()
 
     class Meta:
         db_table = 'environment_attributes'
+        primary_key = CompositeKey('environment', 'type')
+
 
 class _EquipmentAttributes(BaseModel):
     equipment = ForeignKeyField(db_column='equipment_id', rel_model=Equipment, to_field='id',
             related_name="attributes")
     type = ForeignKeyField(db_column='type_id', rel_model=AttributeType, to_field='id')
-    value = TextField()
+    value = PickleField()
 
     class Meta:
         db_table = 'equipment_attributes'
+        primary_key = CompositeKey('equipment', 'type')
+
 
 class _EquipmentModelAttributes(BaseModel):
     equipmentmodel = ForeignKeyField(db_column='equipmentmodel_id',
             rel_model=EquipmentModel, to_field='id', related_name="attributes")
     type = ForeignKeyField(db_column='type_id', rel_model=AttributeType, to_field='id')
-    value = TextField()
+    value = PickleField()
 
     class Meta:
         db_table = 'equipment_model_attributes'
+        primary_key = CompositeKey('equipmentmodel', 'type')
+
 
 class Function(BaseModel):
+    name = CharField(max_length=80, unique=True)
     description = TextField(null=True)
-    name = CharField(max_length=80)
 
     class Meta:
         db_table = 'function'
 
+
 class Software(BaseModel):
+    name = CharField(max_length=255, unique=True)
     implements = ForeignKeyField(db_column='category_id',
             rel_model=Function, to_field='id', related_name="implementations")
-    manufacturer = ForeignKeyField(db_column='manufacturer_id', null=True, rel_model=Corporations, to_field='id',
-            related_name="softwares")
-    name = CharField(max_length=255)
-    vendor = ForeignKeyField(db_column='vendor_id', null=True, rel_model=Corporations, to_field='id',
+    manufacturer = ForeignKeyField(db_column='manufacturer_id', null=True,
+            rel_model=Corporations, to_field='id', related_name="softwares")
+    vendor = ForeignKeyField(db_column='vendor_id', null=True,
+            rel_model=Corporations, to_field='id',
             related_name="vended_software")
 
     class Meta:
         db_table = 'software'
 
+
 class _EquipmentModelEmbeddedsoftware(BaseModel):
     equipmentmodel = ForeignKeyField(db_column='equipmentmodel_id',
-            rel_model=EquipmentModel, to_field='id', related_name="embedded_software")
-    software = ForeignKeyField(db_column='software_id', rel_model=Software, to_field='id')
+            rel_model=EquipmentModel, to_field='id',
+            related_name="embedded_software")
+    software = ForeignKeyField(db_column='software_id',
+            rel_model=Software, to_field='id')
 
     class Meta:
         db_table = 'equipment_model_embeddedsoftware'
+        primary_key = CompositeKey('equipmentmodel', 'software')
+
 
 class _EquipmentSoftware(BaseModel):
     equipment = ForeignKeyField(db_column='equipment_id', rel_model=Equipment, to_field='id',
@@ -601,6 +760,8 @@ class _EquipmentSoftware(BaseModel):
 
     class Meta:
         db_table = 'equipment_software'
+        primary_key = CompositeKey('equipment', 'software')
+
 
 class _EquipmentSubcomponents(BaseModel):
     from_equipment = ForeignKeyField(db_column='from_equipment_id',
@@ -610,201 +771,294 @@ class _EquipmentSubcomponents(BaseModel):
 
     class Meta:
         db_table = 'equipment_subcomponents'
+        primary_key = CompositeKey('from_equipment', 'to_equipment')
+
 
 class InterfaceType(BaseModel):
-    enumeration = IntegerField(null=True)
     name = CharField(max_length=40)
+    enumeration = IntegerField(null=True)
 
     class Meta:
         db_table = 'interface_type'
 
+    def __str__(self):
+        return "{}({})".format(self.name, self.enumeration)
+
+
 class Networks(BaseModel):
+    ROW_DISPLAY = ("name", "layer", "vlanid", "ipnetwork", "notes")
+    name = CharField(max_length=64)
     ipnetwork = CIDRField(null=True)  # cidr
     layer = IntegerField()
-    lower = ForeignKeyField(db_column='lower_id', null=True, rel_model='self', to_field='id')
-    name = CharField(max_length=64)
+    lower = ForeignKeyField(db_column='lower_id', null=True,
+            rel_model='self', to_field='id')
     notes = TextField(null=True)
     vlanid = IntegerField(null=True)
 
     class Meta:
         db_table = 'networks'
 
+    def __str__(self):
+        if self.layer == 2 and self.vlanid is not None:
+            return "{} <{}>".format(self.name, self.vlanid)
+        elif self.layer == 3 and self.ipnetwork is not None:
+            return "{} ({})".format(self.name, self.ipnetwork)
+        else:
+            return "{}[{}]".format(self.name, self.layer)
+
+
 class Interfaces(BaseModel):
-    alias = CharField(max_length=64, null=True)
-    description = TextField(null=True)
-    equipment = ForeignKeyField(db_column='equipment_id', null=True,
-            rel_model=Equipment, to_field='id', related_name="interfaces")
-    ifindex = IntegerField(null=True)
-    interface_type = ForeignKeyField(db_column='interface_type_id', null=True,
-            rel_model=InterfaceType, to_field='id')
-    ipaddr = IPv4Field(null=True)  # inet
-    macaddr = MACField(null=True)  # macaddr
-    mtu = IntegerField(null=True)
+    ROW_DISPLAY = ("name", "ifindex", "interface_type", "equipment",
+            "macaddr", "ipaddr", "network")
     name = CharField(max_length=64)
-    network = ForeignKeyField(db_column='network_id', null=True, rel_model=Networks, to_field='id')
-    parent = ForeignKeyField(db_column='parent_id', null=True, rel_model='self', to_field='id')
+    alias = CharField(max_length=64, null=True)
+    ifindex = IntegerField(null=True)
+    description = TextField(null=True)
     speed = IntegerField(null=True)
     status = IntegerField(null=True)
+    ipaddr = IPv4Field(null=True)  # inet
+    macaddr = MACField(null=True)  # macaddr
     vlan = IntegerField(null=True)
+    mtu = IntegerField(null=True)
+    parent = ForeignKeyField(db_column='parent_id', null=True,
+            rel_model='self', to_field='id')
+    equipment = ForeignKeyField(db_column='equipment_id', null=True,
+            rel_model=Equipment, to_field='id', related_name="interfaces")
+    interface_type = ForeignKeyField(db_column='interface_type_id', null=True,
+            rel_model=InterfaceType, to_field='id')
+    network = ForeignKeyField(db_column='network_id', null=True,
+            rel_model=Networks, to_field='id')
 
     class Meta:
         db_table = 'interfaces'
 
+    def __str__(self):
+        return "{} ({})".format(self.name, self.ipaddr)
+
+
 class LanguageSets(BaseModel):
-    name = CharField(max_length=80)
+    name = CharField(max_length=80, unique=True)
     class Meta:
         db_table = 'language_sets'
 
+
 class _LanguageSetsLanguages(BaseModel):
-    language = ForeignKeyField(db_column='language_id', rel_model=LanguageCodes, to_field='id',
-            related_name="sets")
-    languageset = ForeignKeyField(db_column='languageset_id', rel_model=LanguageSets, to_field='id')
+    language = ForeignKeyField(db_column='language_id',
+            rel_model=LanguageCodes, to_field='id', related_name="sets")
+    languageset = ForeignKeyField(db_column='languageset_id',
+            rel_model=LanguageSets, to_field='id')
 
     class Meta:
         db_table = 'language_sets_languages'
+        primary_key = CompositeKey('language', 'languageset')
+
 
 class ProjectVersions(BaseModel):
-    build = IntegerField(null=True)
-    major = IntegerField()
-    minor = IntegerField()
     project = ForeignKeyField(db_column='project_id',
             rel_model=Projects, to_field='id', related_name="versions")
-    subminor = IntegerField()
+    major = IntegerField(default=1)
+    minor = IntegerField(default=0)
+    subminor = IntegerField(default=0)
+    build = IntegerField(null=True)
     valid = BooleanField()
 
     class Meta:
         db_table = 'project_versions'
+        indexes = (
+            (("project", "major", "minor", "subminor", "build"), True),
+            )
+
+    def __str__(self):
+        return "{} {}.{}.{}-{}".format(self.project, self.major, self.minor,
+                self.subminor, self.build)
+
 
 class _ProjectsComponents(BaseModel):
-    component = ForeignKeyField(db_column='component_id', rel_model=Components, to_field='id',
-            related_name="projects")
-    project = ForeignKeyField(db_column='project_id', rel_model=Projects, to_field='id',
-            related_name="components")
+    component = ForeignKeyField(db_column='component_id',
+            rel_model=Components, to_field='id', related_name="projects")
+    project = ForeignKeyField(db_column='project_id',
+            rel_model=Projects, to_field='id', related_name="components")
 
     class Meta:
         db_table = 'projects_components'
+        primary_key = CompositeKey('component', 'project')
+
 
 class RiskCategory(BaseModel):
+    name = CharField(max_length=80, unique=True)
     description = TextField(null=True)
-    name = CharField(max_length=80)
 
     class Meta:
         db_table = 'risk_category'
 
+    def __str__(self):
+        return self.name
+
+
 class RiskFactors(BaseModel):
     description = TextField(null=True)
-    likelihood = IntegerField()
-    priority = IntegerField()
+    likelihood = EnumField(constants.Likelihood)
+    severity = EnumField(constants.Severity)
+    priority = EnumField(constants.Priority)
     requirement = ForeignKeyField(db_column='requirement_id', null=True,
             rel_model=RequirementRef, to_field='id', related_name="risk_factors")
     risk_category = ForeignKeyField(db_column='risk_category_id', null=True,
             rel_model=RiskCategory, to_field='id', related_name="factors")
-    severity = IntegerField()
     testcase = ForeignKeyField(db_column='testcase_id', null=True,
             rel_model=TestCases, to_field='id', related_name="risk_factors")
 
     class Meta:
         db_table = 'risk_factors'
 
+
 class Schedule(BaseModel):
-    day_of_month = CharField(max_length=80)
-    day_of_week = CharField(max_length=80)
+    """Cron style time schedule."""
+    name = CharField(max_length=80)
     hour = CharField(max_length=80)
     minute = CharField(max_length=80)
     month = CharField(max_length=80)
-    name = CharField(max_length=80)
-    user = ForeignKeyField(db_column='user_id', null=True, rel_model=User, to_field='id',
-            related_name="schedules", on_update="CASCADE", on_delete="CASCADE")
+    day_of_month = CharField(max_length=80)
+    day_of_week = CharField(max_length=80)
+    user = ForeignKeyField(db_column='user_id', null=True,
+            rel_model=User, to_field='id', related_name="schedules",
+            on_update="CASCADE", on_delete="CASCADE")
 
     class Meta:
         db_table = 'schedule'
+        indexes = (
+            (("name", "user"), True),
+            )
+
+    def __str__(self):
+        return self.name
+
 
 class _SoftwareAttributes(BaseModel):
     software = ForeignKeyField(db_column='software_id', rel_model=Software, to_field='id')
     type = ForeignKeyField(db_column='type_id', rel_model=AttributeType, to_field='id')
-    value = TextField()
+    value = PickleField()
 
     class Meta:
         db_table = 'software_attributes'
+        primary_key = CompositeKey('software', 'type')
+
 
 class SoftwareVariant(BaseModel):
+    name = CharField(max_length=80, unique=True)
     country = ForeignKeyField(db_column='country_id', null=True, rel_model=CountryCodes, to_field='id')
     encoding = CharField(max_length=80, null=True)
     language = ForeignKeyField(db_column='language_id', null=True,
             rel_model=LanguageCodes, to_field='id', related_name="softwares")
-    name = CharField(max_length=80)
 
     class Meta:
         db_table = 'software_variant'
 
+
 class _SoftwareVariants(BaseModel):
-    software = ForeignKeyField(db_column='software_id', rel_model=Software, to_field='id')
-    softwarevariant = ForeignKeyField(db_column='softwarevariant_id', rel_model=SoftwareVariant, to_field='id')
+    software = ForeignKeyField(db_column='software_id',
+            rel_model=Software, to_field='id', related_name="variants")
+    softwarevariant = ForeignKeyField(db_column='softwarevariant_id',
+            rel_model=SoftwareVariant, to_field='id')
 
     class Meta:
         db_table = 'software_variants'
+        primary_key = CompositeKey('software', 'softwarevariant')
+
 
 class _TestCasesAreas(BaseModel):
-    functionalarea = ForeignKeyField(db_column='functionalarea_id',
-            rel_model=FunctionalArea, to_field='id')
     testcase = ForeignKeyField(db_column='testcase_id',
             rel_model=TestCases, to_field='id', related_name="test_areas")
+    functionalarea = ForeignKeyField(db_column='functionalarea_id',
+            rel_model=FunctionalArea, to_field='id')
 
     class Meta:
         db_table = 'test_cases_areas'
+        primary_key = CompositeKey('testcase', 'functionalarea')
+
 
 class _TestCasesPrerequisites(BaseModel):
-    prerequisite = ForeignKeyField(db_column='prerequisite_id',
-            rel_model=TestCases, to_field='id', related_name="prerequisites")
     testcase = ForeignKeyField(db_column='testcase_id',
             rel_model=TestCases, to_field='id', related_name="secondary")
+    prerequisite = ForeignKeyField(db_column='prerequisite_id',
+            rel_model=TestCases, to_field='id', related_name="prerequisites")
 
     class Meta:
         db_table = 'test_cases_prerequisites'
+        primary_key = CompositeKey('testcase', 'prerequisite')
+
 
 class TestJobs(BaseModel):
-    environment = ForeignKeyField(db_column='environment_id', rel_model=Environments, to_field='id')
-    isscheduled = BooleanField()
+    ROW_DISPLAY = ("name",)
     name = CharField(max_length=80)
+    environment = ForeignKeyField(db_column='environment_id',
+            rel_model=Environments, to_field='id')
+    isscheduled = BooleanField()
     parameters = TextField(null=True)
     reportname = CharField(max_length=80)
-    schedule = ForeignKeyField(db_column='schedule_id', null=True, rel_model=Schedule, to_field='id')
+    schedule = ForeignKeyField(db_column='schedule_id', null=True,
+            rel_model=Schedule, to_field='id')
     testsuite = ForeignKeyField(db_column='testsuite_id',
             rel_model=TestSuites, to_field='id', related_name="jobs")
-    user = ForeignKeyField(db_column='user_id', rel_model=User, to_field='id',
-            related_name="testjobs", on_update="CASCADE", on_delete="CASCADE")
+    user = ForeignKeyField(db_column='user_id',
+            rel_model=User, to_field='id', related_name="testjobs",
+            on_update="CASCADE", on_delete="CASCADE")
 
     class Meta:
         db_table = 'test_jobs'
+        indexes = (
+            (("name", "user"), True),
+            )
+
+    def __str__(self):
+        return self.name
+
+
+class UseCases(BaseModel):
+    ROW_DISPLAY = ("name",)
+    name = CharField(max_length=255, unique=True)
+    purpose = TextField(null=True)
+    notes = TextField(null=True)
+
+    class Meta:
+        db_table = 'use_cases'
+
+    def __str__(self):
+        return self.name
+
 
 class TestResults(BaseModel):
+    testimplementation = CharField(max_length=255, null=True)
+    objecttype = EnumField(constants.ObjectTypes)
+    result = EnumField(constants.TestResult)
+    testversion = CharField(max_length=255, null=True)
     arguments = CharField(max_length=255, null=True)
-    build = ForeignKeyField(db_column='build_id', null=True, rel_model=ProjectVersions, to_field='id')
     diagnostic = TextField(null=True)
-    endtime = DateTimeField(null=True)
-    environment = ForeignKeyField(db_column='environment_id', null=True, rel_model=Environments, to_field='id')
-    note = TextField(null=True)
-    objecttype = IntegerField()
-    parent = ForeignKeyField(db_column='parent_id', null=True, rel_model='self', to_field='id')
-    reportfilename = CharField(max_length=255, null=True)
-    result = IntegerField()
-    resultslocation = CharField(max_length=255, null=True)
     starttime = DateTimeField(null=True)
+    endtime = DateTimeField(null=True)
+    note = TextField(null=True)
+    reportfilename = CharField(max_length=255, null=True)
+    valid = BooleanField()
+    environment = ForeignKeyField(db_column='environment_id', null=True,
+            rel_model=Environments, to_field='id')
+    parent = ForeignKeyField(db_column='parent_id', null=True,
+            rel_model='self', to_field='id')
+    build = ForeignKeyField(db_column='build_id', null=True,
+            rel_model=ProjectVersions, to_field='id')
+    resultslocation = CharField(max_length=255, null=True)
     testcase = ForeignKeyField(db_column='testcase_id', null=True,
             rel_model=TestCases, to_field='id', related_name="results")
-    tester = ForeignKeyField(db_column='tester_id', null=True, rel_model=User, to_field='id',
-            related_name="testresults", on_update="CASCADE", on_delete="SET NULL")
-    testimplementation = CharField(max_length=255, null=True)
+    tester = ForeignKeyField(db_column='tester_id', null=True,
+            rel_model=User, to_field='id', related_name="testresults",
+            on_update="CASCADE", on_delete="SET NULL")
     testsuite = ForeignKeyField(db_column='testsuite_id', null=True,
             rel_model=TestSuites, to_field='id', related_name="results")
-    testversion = CharField(max_length=255, null=True)
-    valid = BooleanField()
 
     class Meta:
         db_table = 'test_results'
 
+
 class TestResultsData(BaseModel):
-    data = TextField()
+    data = JSONField()
     note = CharField(max_length=255, null=True)
     test_results = ForeignKeyField(db_column='test_results_id',
             rel_model=TestResults, to_field='id', related_name="data",
@@ -812,6 +1066,7 @@ class TestResultsData(BaseModel):
 
     class Meta:
         db_table = 'test_results_data'
+
 
 class _TestSuitesSuites(BaseModel):
     from_testsuite = ForeignKeyField(db_column='from_testsuite_id',
@@ -821,6 +1076,8 @@ class _TestSuitesSuites(BaseModel):
 
     class Meta:
         db_table = 'test_suites_suites'
+        primary_key = CompositeKey('from_testsuite', 'to_testsuite')
+
 
 class _TestSuitesTestcases(BaseModel):
     testcase = ForeignKeyField(db_column='testcase_id',
@@ -830,6 +1087,8 @@ class _TestSuitesTestcases(BaseModel):
 
     class Meta:
         db_table = 'test_suites_testcases'
+        primary_key = CompositeKey('testcase', 'testsuite')
+
 
 class Testequipment(BaseModel):
     DUT = BooleanField(db_column='DUT')
@@ -842,28 +1101,112 @@ class Testequipment(BaseModel):
 
     class Meta:
         db_table = 'testequipment'
+        indexes = (
+            (("environment", "equipment"), True),
+            )
 
 class _TestequipmentRoles(BaseModel):
-    function = ForeignKeyField(db_column='function_id',
-            rel_model=Function, to_field='id')
     testequipment = ForeignKeyField(db_column='testequipment_id',
             rel_model=Testequipment, to_field='id')
+    function = ForeignKeyField(db_column='function_id',
+            rel_model=Function, to_field='id')
 
     class Meta:
         db_table = 'testequipment_roles'
-
-class UseCases(BaseModel):
-    name = CharField(max_length=255)
-    notes = TextField(null=True)
-    purpose = TextField(null=True)
-
-    class Meta:
-        db_table = 'use_cases'
+        primary_key = CompositeKey('testequipment', 'function')
 
 
-MetaDataTuple = collections.namedtuple("MetaDataTuple",
-        "coltype, colname, default, m2m, nullable, isaset")
+# Attribute type coercion to specified type.
 
+def coerce_value_type(value_type, value):
+    try:
+        return _COERCE_MAP[value_type](value)
+    except (ValueError, TypeError) as err:
+        raise ModelValidationError(err)
+
+def _coerce_float(value):
+    return float(value)
+
+def _coerce_int(value):
+    return int(value)
+
+def _coerce_boolean(value):
+    if isinstance(value, str):
+        value = value.lower()
+        if value in ("on", "1", "true", "t", "y", "yes"):
+            return True
+        elif value in ("off", "0", "false", "f", "n", "no"):
+            return False
+        else:
+            raise ModelValidationError("Invalid boolean string: {!r}".format(value))
+    else:
+        return bool(value)
+
+def _coerce_object(value):
+    if isinstance(value, str):
+        try:
+            return eval(value, {}, {})
+        except:
+            ex, val, tb = sys.exc_info()
+            del tb
+            raise ModelValidationError("Could not evaluate object: {}: {}".format(ex,__name__, val))
+    else:
+        return value
+
+def _coerce_string(value):
+    return str(value)
+
+_COERCE_MAP = {
+    constants.ValueType.Object: _coerce_object,
+    constants.ValueType.String: _coerce_string,
+    constants.ValueType.Integer: _coerce_int,
+    constants.ValueType.Float: _coerce_float,
+    constants.ValueType.Boolean: _coerce_boolean,
+}
+
+
+
+### introspection
+
+def get_columns(class_):
+    """Returns a list of ColumnMetadata.
+    """
+    return database.get_columns(class_._meta.db_table)
+
+
+def get_foreign_keys(class_):
+    return database.get_foreign_keys(class_._meta.db_table)
+
+def get_metadata(class_):
+    return get_columns(class_) + get_foreign_keys(class_)
+
+def get_column_metadata(class_, colname):
+    for colmd in get_columns(class_):
+        if colmd.name == colname:
+            return colmd
+
+
+def get_rowdisplay(class_):
+    return getattr(class_, "ROW_DISPLAY", None) or [t.name for t in get_columns(class_)]
+
+
+def get_primary_key_name(table):
+    """Return name or names of primary key column. Return None if not defined."""
+    pk = database.get_primary_keys(table._meta.db_table)
+    pk_l = len(pk)
+    if pk_l == 0:
+        return None
+    elif pk_l == 1:
+        return pk[0]
+    else:
+        return tuple(pk)
+
+def get_primary_key_value(dbrow):
+    pkname = get_primary_key_name(dbrow.__class__)
+    if pkname:
+        return getattr(dbrow, str(pkname))
+    else:
+        raise ModelError("No primary key for this row: {!r}".format(dbrow))
 
 
 _DBSCHEMES = {
@@ -871,7 +1214,6 @@ _DBSCHEMES = {
     'postgresql': PostgresqlDatabase,
     'sqlite': SqliteDatabase,
 }
-
 
 def connect(url=None):
     global database, database_proxy
@@ -884,52 +1226,102 @@ def connect(url=None):
     dbclass = _DBSCHEMES.get(url.scheme)
     if dbclass is None:
         raise ValueError("Unsupported database: {}".format(url.scheme))
-    kwargs = {'database': url.path[1:], "autocommit": False}
-    if url.username:
-        kwargs['user'] = url.username
-    if url.password:
-        kwargs['password'] = url.password
-    if url.hostname:
-        kwargs['host'] = url.hostname
+    kwargs = {"autocommit": False}
+    if url.scheme.startswith("postgres"):
+        kwargs['database'] = url.path[1:]
+        if url.username:
+            kwargs['user'] = url.username
+        if url.password:
+            kwargs['password'] = url.password
+        if url.hostname:
+            kwargs['host'] = url.hostname
+    else:
+        kwargs['database'] = url.path
     # Create db and initialize proxy to new db
     database = dbclass(**kwargs)
     database_proxy.initialize(database)
 
 
-def get_metadata_iterator(modelclass):
-    for col in modelclass._meta:
-        yield _get_column_metadata(col)
-
-
-def _get_column_metadata(col):
-    coltype = col.__class__.__name__
-    m2m =  False # TODO
-    isaset =  isinstance(col, ForeignKeyField)
-    return MetaDataTuple(coltype, col.name, col.default, m2m, col.null, isaset)
-
-def get_metadata(class_):
-    """Returns a list of MetaDataTuple structures.
-    """
-    return list(get_metadata_iterator(class_))
-
-def get_rowdisplay(class_):
-    return getattr(class_, "ROW_DISPLAY", None) or [t.colname for t in get_metadata(class_)]
-
+_ASSOC_TABLES = [
+    "_AuthGroupPermissions", "_AuthUserUserPermissions", "_AuthUserGroups",
+    "_ComponentsSuites", "_CorpAttributes", "_EnvironmentAttributes",
+    "_EquipmentAttributes", "_EquipmentModelAttributes",
+    "_EquipmentModelEmbeddedsoftware", "_EquipmentSoftware",
+    "_EquipmentSubcomponents", "_LanguageSetsLanguages", "_ProjectsComponents",
+    "_SoftwareAttributes", "_SoftwareVariants", "_TestCasesAreas",
+    "_TestCasesPrerequisites", "_TestSuitesSuites", "_TestSuitesTestcases",
+    "_TestequipmentRoles", ]
 
 if __name__ == "__main__":
-    import sys
+    from pycopia import autodebug
+    connect()
+    #print(list(AttributeType.get_attribute_list()))
+    em = EquipmentModel.select().first()
+    print(em)
+    eq = Equipment.select().first()
+    print(eq)
 
-    _ASSOC_TABLES = [
-        "_AuthGroupPermissions", "_AuthUserUserPermissions", "_AuthUserGroups", "_Capability",
-        "_ComponentsSuites", "_CorpAttributes", "_EnvironmentAttributes", "_EquipmentAttributes",
-        "_EquipmentModelAttributes", "_EquipmentModelEmbeddedsoftware", "_EquipmentSoftware",
-        "_EquipmentSubcomponents", "_LanguageSetsLanguages", "_ProjectsComponents",
-        "_SoftwareAttributes", "_SoftwareVariants", "_TestCasesAreas",
-        "_TestCasesPrerequisites", "_TestSuitesSuites", "_TestSuitesTestcases",
-        "_TestequipmentRoles",
-        ]
-    if len(sys.argv) > 1:
-        connect(sys.argv[1])
-        vs = vars()
-        database.create_tables([vs[name] for name in TABLES + _ASSOC_TABLES], safe=True)
+    print("Equipment metadata:")
+    print (get_metadata(Equipment))
+
+    print("Primary keys:")
+    assert get_primary_key_name(Equipment) == "id"
+    print("     Equipment:", get_primary_key_name(Equipment))
+    print(" ClientSession:", get_primary_key_name(ClientSession))
+
+    print (get_column_metadata(Equipment, "interfaces"))
+    print (get_column_metadata(Networks, "interfaces"))
+
+    print ("EnumField choices")
+    print (AttributeType.value_type.choices)
+    #print (get_choices(sess, Equipment, "interfaces", order_by=None))
+    #q = sess.query(Interface).filter(Interface.equipment == None)
+
+    #print (Equipment.attributes)
+    #print (Equipment.interfaces)
+    #print (eq.attributes)
+    #print (Equipment.attributes)
+    #print (Equipment.interfaces)
+    #print "eq = ", eq
+    #print "Atributes:"
+    #print (eq.attributes)
+    #print "Interfaces:"
+    #print eq.interfaces
+    #eq.add_interface(sess, "eth1", interface_type="ethernetCsmacd", ipaddr="172.17.101.2/24")
+    print ("Capabilities:")
+    #print (list(eq.capabilities))
+
+#    for res in  TestResults.get_latest_results(sess):
+#        print (res)
+
+#    print "\nlatest run:"
+#    user = User.get_by_username(sess, "keith")
+#    print(user)
+#    print(type(user))
+#    print(user.full_name)
+#    lr = TestResults.get_latest_run(sess, user)
+#    print lr
+#    print
+    #print dir(class_mapper(Equipment))
+    #print
+    #print class_mapper(Equipment).get_property("name")
+#    for tr in TestSuite.get_latest_results(sess):
+#        print (tr)
+#    tc = TestCase.get_by_implementation(sess, "testcases.unittests.WWW.client.HTTPPageFetch")
+#    print(tc)
+#    print(get_primary_key_value(tc))
+#    print(tc.id)
+#    ltr = tc.get_latest_result(sess)
+#    print(ltr)
+#    print(ltr.id)
+#    print(ltr.data)
+#    print(ltr.data[0].data)
+#
+#    for tr in tc.get_data(sess):
+#        print(tr)
+#    with DatabaseContext() as sess:
+#        for intf in Interface.select_unattached(sess):
+#            print(intf)
+#    print(type(TestSuite.get_by_implementation(sess, "testcases.unittests.WWW.mobileget.MobileSendSuite")))
+#    print (TestSuite.get_suites(sess))
 
