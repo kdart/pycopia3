@@ -22,6 +22,11 @@ debugger      -- Enhanced Python debugger, using the CLI framework.
 
 net           -- Modules for working with networks and servers, such as HTTP client.
 
+QA            -- Complete systems framework (QA framework). Enables writing
+                 simple, abstract test cases. A persistent storage model is
+                 included that allows you to also manage test cases, report
+                 results, and manage lab equipment as well.
+
 Most of this library is mostly governed by the Lesser GNU Public License
 (LGPL). Some modules are under the Apache 2.0 license.
 
@@ -82,7 +87,7 @@ Commands:
  msis             -- Build Microsoft .msi on Windows.
  wininst          -- Build .exe installer on Windows.
  develop          -- Developer mode, as defined by setuptools. Set per user. Allows
-		     running from workspace.
+                     running from workspace.
  clean            -- Run setuptools clean phase.
  squash           -- Squash (flatten) all named sub-packages into single tree
                      in $PYCOPIA_SQUASH, or user site-directory if no $PYCOPIA_SQUASH defined.
