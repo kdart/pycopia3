@@ -9,9 +9,12 @@ from pycopia.QA.exceptions import ReportFindError
 
 def get_report(config):
     from . import default
-    # TODO selection based on config
-    if locale.getpreferredencoding() == 'UTF-8':
-        return default.DefaultReportUnicode()
+    rname = config.get("reportname", "default")
+    if rname.startswith("default"):
+        if locale.getpreferredencoding() == 'UTF-8':
+            return default.DefaultReportUnicode()
+        else:
+            return default.DefaultReport()
     else:
-        return default.DefaultReport()
+        raise ReportFindError("No report {} defined.".format(rname))
 

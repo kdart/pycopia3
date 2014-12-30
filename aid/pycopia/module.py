@@ -94,7 +94,7 @@ def get_object(name):
         try:
             return getattr(mod, name[i+1:]) # path tail is an object inside module
         except AttributeError:
-            raise ObjectImportError("%r not found in %r." % (name[i+1:], mod.__name__))
+            raise ObjectImportError("{!r} not found in {!r}.".format(name[i+1:], mod.__name__))
     else:
         return get_module(name) # basic module name
 

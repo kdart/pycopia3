@@ -32,17 +32,17 @@ If a test cannot be completed for some reason you may also raise a
 The default result is ``incomplete``.
 
 Usually, a set of test cases is collected in a TestSuite object, which is
-constructed by a UseCase object (static object).  Therefore, the set of tests
-run is dynamic, and can be adjusted depending on configuration options.  Test
-cases are run in the order added to a test suite.
+constructed by a UseCase object.  Therefore, the set of tests run is dynamic,
+and can be adjusted depending on configuration options.  Test cases are run in
+the order added to a test suite.
 
 
 Example::
 
     class MyCase(UseCase):
-        @staticmethod
-        def get_suite(config):
-            suite = TestSuite(name="MySuite")
+
+        def get_suite(config, environment):
+            suite = TestSuite(config, environment, name="MySuite")
             suite.add_test(MyTestSubclass)
             ...
             return suite
@@ -51,8 +51,6 @@ Then target the use case with a path to it in the runner. ::
 
     $ runtest testcases.subpackage.module.MyCase
 
-Note that a UseCase is not instantiated. It's used as a holder for a the suite constructor and
-allows for documentation.
 """
 
 import sys
@@ -99,17 +97,19 @@ def insert_options(klass, **kwargs):
 class TestCase:
     """Base class for all test cases.
 
-    Subclass this to define a new test. Define the ``execute`` method in the subclass.  The test
-    should test one specific thing. Optionally define the ``initialize`` and ``finalize`` methods.
-    Those are run before, and after the ``execute`` method.
+    Subclass this to define a new test. Define the ``execute`` method in the
+    subclass.  The test should test one specific thing. Optionally define the
+    ``initialize`` and ``finalize`` methods.  Those are run before, and after
+    the ``execute`` method.
     """
     OPTIONS = TestOptions({})
     PREREQUISITES = []
 
-    def __init__(self, config):
+    def __init__(self, config, environment):
         cl = self.__class__
         self.test_name = "%s.%s" % (cl.__module__, cl.__name__)
         self.config = config
+        self.environment = environment
         #self._report = config.report
         self._debug = config.flags.DEBUG
         self._verbose = config.flags.VERBOSE
@@ -226,7 +226,7 @@ class TestCase:
         Runs another TestCase subclass with the given arguments passed to the
         `execute()`.
         """
-        inst = _testclass(self.config)
+        inst = _testclass(self.config, self.environment)
         return inst(*args, **kwargs)
 
     def debug_here(self):
@@ -643,7 +643,7 @@ class TestEntrySeries(TestEntry):
         """
         return self.inst.test_name == prereq.implementation
 
-    def run(self, config=None):
+    def run(self):
         resultset = {TestResult.PASSED:0, TestResult.FAILED:0,
                 TestResult.EXPECTED_FAIL:0, TestResult.INCOMPLETE:0}
         for argset in self._counter:
@@ -713,8 +713,9 @@ class TestSuite:
     pass the suite is passed also. If any fail, the suite is failed. If any are
     incomplete the suite is incomplete.
     """
-    def __init__(self, cf, nested=0, name=None):
+    def __init__(self, cf, environment, nested=0, name=None):
         self.config = cf
+        self.environment = environment
         self._debug = cf.flags.DEBUG
         self._tests = []
         self._testset = set()
@@ -739,7 +740,8 @@ class TestSuite:
                     prereq.implementation = impl
                 pretestclass = module.get_object(impl)
                 pretestclass.set_test_options()
-                preentry = TestEntry(pretestclass(self.config), prereq.args, prereq.kwargs, True)
+                preentry = TestEntry(pretestclass(self.config, self.environment),
+                        prereq.args, prereq.kwargs, True)
                 presig, argsig = preentry.signature
                 if presig not in self._multitestset:
                     self._add_with_prereq(preentry, True)
@@ -762,7 +764,7 @@ class TestSuite:
         if isinstance(_testclass, str):
             _testclass = module.get_class(_testclass)
         _testclass.set_test_options()
-        testinstance = _testclass(self.config)
+        testinstance = _testclass(self.config, self.environment)
         entry = TestEntry(testinstance, args, kwargs, False)
         self._add_with_prereq(entry)
 
@@ -818,11 +820,12 @@ class TestSuite:
         if isinstance(_testclass, str):
             _testclass = module.get_class(_testclass)
         _testclass.set_test_options()
-        testinstance = _testclass(self.config)
+        testinstance = _testclass(self.config, self.environment)
         try:
-            entry = TestEntrySeries(testinstance, N, chooser, filter, args, kwargs)
-        except ValueError as err: # ListCounter raises this if there is an empty list.
-            self.info("addTestSeries Error: %s. Not adding %s as series." % (
+            entry = TestEntrySeries(
+                    testinstance, N, chooser, filter, args, kwargs)
+        except ValueError as err:
+            self.info("add_test_series: {}. Not adding {} as series.".format(
                     err, _testclass.__name__))
         else:
             # series tests don't get auto-added (can't know what all the args
@@ -893,18 +896,16 @@ class TestSuite:
         """
         return ()
 
-    def run(self, *args, **kwargs):
+    def run(self):
         """Invoke the test suite.
 
         Calling the instance is the primary way to invoke a suite of tests.
-        Any supplied parameters are passed onto the suite's initialize()
-        method.
 
         It will then run all TestEntry, report on interrupts, and check for
         abort conditions. It will also skip tests whose prerequisites did not
         pass. If the debug level is 2 or more then the tests are not skipped.
         """
-        self._initialize(*args, **kwargs)
+        self._initialize()
         starttime = datetime.now()
         suite_start.send(self, time=starttime)
         self._run_tests()
@@ -913,9 +914,9 @@ class TestSuite:
         self._finalize()
         return self.result
 
-    def _initialize(self, *args, **kwargs):
+    def _initialize(self):
         try:
-            self.initialize(*args, **kwargs)
+            self.initialize()
         except KeyboardInterrupt:
             self.info("Suite aborted by user in initialize().")
             raise TestSuiteAbort("Interrupted in suite initialize.")
@@ -1006,12 +1007,11 @@ class TestSuite:
         suite_info.send(self, message=msg)
 
     ### overrideable interface. ###
-    def initialize(self, *args, **kwargs):
+    def initialize(self):
         """initialize phase handler for suite-level initialization.
 
         Override this if you need to do some initialization just before the
-        suite is run. This is called with the arguments given to the TestSuite
-        object when it was called.
+        suite is run.
         """
         pass
 
@@ -1021,31 +1021,32 @@ class TestSuite:
         Aborts the suite on error or interrupt. If this is a sub-suite then
         TestSuiteAbort is raised so that the top-level suite can handle it.
 
-        Override this if you need to do some additional clean-up after the suite is run.
+        Override this if you need to do some additional clean-up after the
+        suite is run.
         """
         pass
 
 Test = TestCase # backwards compatibility
 
 class UseCase:
-    """UseCase holds a TesetSuite constructor.
+    """UseCase is a runable object that dynamically creates a test suite.
 
-    Subclass this in your test module and define the ``get_suite`` static method.
+    Subclass this in your test module and define the ``get_suite`` static
+    method.
 
-    Be sure to add some documentation to your subclass to describe the use case.
+    Be sure to add some documentation to your subclass to describe the use
+    case.
 
     This allows for dynamic suite construction. Suites may have different sets
     of tests depending on the runtime configuration.
-
-
     """
     @staticmethod
-    def get_suite(config):
-        return TestSuite(config, name="EmptySuite")
+    def get_suite(config, environment, suiteclass=TestSuite):
+        return suiteclass(config, environment, name=suiteclass.__name__)
 
     @classmethod
-    def run(cls, config):
-        suite = cls.get_suite(config)
+    def run(cls, config, environment):
+        suite = cls.get_suite(config, environment)
         suite.run()
         return suite.result
 

@@ -23,7 +23,9 @@ import os
 from pycopia import logging
 from pycopia import getopt
 from pycopia import module
+from pycopia import debugger
 
+from pycopia.QA import testrunner
 
 
 def choose_tests():
@@ -117,31 +119,26 @@ Usage:
 
     %s [-h?dDviIr] [-c|-f <configfile>] [-n <string>] arg...
 
-    Where the arguments are test suite or test case names. If none are
-    supplied a menu is presented.
+    Where the arguments are test suite or test case module path names. If none
+    are supplied a menu is presented.
 
     Options:
-        Tells the runner what test modules to run, and sets the flags in the
-        configuration. Options are:
 
-            -h -- Print help text and return.
-            -d -- Turn on debugging for tests.
-            -D -- Turn on debugging for framework.
-            -v -- Increase verbosity.
-            -i -- Set flag to run interactive tests.
-            -I -- Set flag to skip interactive tests.
-            -n <string> -- Add a comment to the test report.
-            -c or -f <file> -- Merge in extra configuration file.
-            -r -- Report on test case or test suite specified. Don't run it.
-                  Without arguments show the possible report and environment
-                  names.
+        -h -- Print help text and return.
+        -d -- Turn on debugging for tests.
+        -D -- Turn on debugging for framework.
+        -v -- Increase verbosity.
+        -I -- Set flag to skip interactive tests.
+        -n <string> -- Add a comment to the test report.
+        -c or -f <file> -- Merge in extra configuration file.
+        -R -- Report on test case or test suite specified. Don't run it.
+              Without arguments show the possible report and environment
+              names.
+        -e <environmentname>  -- Name of Environment to use for this run.
+        -r <reportname>  -- Name of report to use for this run.
 
-    Long options are passed as parameters to test cases, in the configuration
-    object. Common long options are:
-
-            --reportname=      -- The name of the report to use,
-                                  defined in the config.reports area.
-            --environmentname= -- Name of the environment to use.
+    Long options (those with '--' prefix) must have values and are added to the
+    configuration object that test cases receive.
 """
 
 class TestRunnerInterface:
@@ -162,10 +159,10 @@ class TestRunnerInterface:
         """
         cf = self.runner.config
         cf.flags.REPORT = False
-        cf.flags.INTERACTIVE = False
+        cf.flags.INTERACTIVE = True
         cf.flags.DEBUG = 0
         cf.flags.VERBOSE = 0
-        optlist, extraopts, args = getopt.getopt(argv[1:], "h?dDviIrc:f:n:")
+        optlist, longopts, args = getopt.getopt(argv[1:], "h?dDvIRc:f:n:e:r:")
         for opt, optarg in optlist:
             if opt in ("-h", "-?"):
                 print((TestRunnerInterfaceDoc % (os.path.basename(argv[0]),)))
@@ -173,25 +170,25 @@ class TestRunnerInterface:
             elif opt == "-d":
                 cf.flags.DEBUG += 1
             elif opt == "-D":
-                from pycopia import autodebug # top-level debug for framework bugs
+                from pycopia import autodebug
             elif opt == "-v":
                 cf.flags.VERBOSE += 1
-            elif opt == "-i":
-                cf.flags.INTERACTIVE = True
             elif opt == "-I":
                 cf.flags.INTERACTIVE = False
             elif opt == "-c" or opt == "-f":
                 cf.mergefile(optarg)
             elif opt == "-n":
                 cf.comment = optarg
-            elif opt == "-r":
+            elif opt == "-R":
                 cf.flags.REPORT = True
-        cf.evalupdate(extraopts)
+            elif opt == "-r":
+                cf.reportname = optarg
+            elif opt == "-e":
+                cf.environmentname = optarg
+
+        cf.evalupdate(longopts)
         # original command line arguments saved for the report
         cf.arguments = [os.path.basename(argv[0])] + argv[1:]
-        # Save extra options for overriding configuration after a mergefile
-        # because command line options should have highest precedence.
-        self.runner.set_options(extraopts)
 
         if not args:
             if cf.flags.REPORT:
@@ -200,7 +197,7 @@ class TestRunnerInterface:
             else:
                 args = choose_tests()
         if not args:
-            return 200
+            return 10
         objects, errors = module.get_objects(args)
         if errors:
             logging.warn("Errors found while loading test object:")
@@ -208,18 +205,16 @@ class TestRunnerInterface:
                 logging.warn(error)
         if objects:
             cf.argv = args
-            self.runner.initialize()
-            rv = self.runner.run_objects(objects)
-            self.runner.finalize()
+            rv = self.runner.run(objects)
             if rv is None:
-                return 199
+                return 11
             else:
                 try:
                     return int(rv)
                 except TypeError:
-                    return 198
+                    return 12
         else:
-            return len(errors) + 200
+            return len(errors) + 20
 
 
 TestReporterInterfaceDoc = r"""
@@ -285,3 +280,7 @@ class TestReporterInterface:
             self.reporter.report_objects(objects)
 
 
+def runtest(argv):
+    tr = testrunner.TestRunner()
+    tri = TestRunnerInterface(tr)
+    return tri.run(argv)

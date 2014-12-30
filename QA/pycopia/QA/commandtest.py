@@ -23,7 +23,8 @@ Attributes are:
     """
     __slots__ = ('cmdline', 'stdin', 'expectedout',
                 'expectederr', 'expectedexit', 'environ')
-    def __init__(self, cmdline=None, environ=None, stdin=None, expectedout=None, expectederr=None, expectedexit=0):
+    def __init__(self, cmdline=None, environ=None, stdin=None,
+            expectedout=None, expectederr=None, expectedexit=0):
         self.cmdline = cmdline
         self.stdin = stdin # what to write to programs stdin
         self.expectedout=expectedout # what is expected to come out
@@ -38,7 +39,8 @@ Attributes are:
 
 
 class CommandTestMixin:
-    """Mixin class for QA.core.TestCase subclasses that runs and verifies subprocess output.
+    """Mixin class for QA.core.TestCase subclasses that runs and verifies
+    subprocess output.
     """
 
     def test_command(self, testcondition):

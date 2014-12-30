@@ -61,7 +61,7 @@ MAGENTA_BACK = "\x1b[45m"
 CYAN_BACK = "\x1b[46m"
 WHITE_BACK = "\x1b[47m"
 
-
+#                 UL  hor   vert  UR  LL   LR
 _BOXCHARS = {1: ['┏', '━', '┃', '┓', '┗', '┛',],
              2: ['╔', '═', '║', '╗', '╚', '╝',],
              3: ['┌', '─', '│', '┐', '└', '┘',],
@@ -73,23 +73,6 @@ _BOXCHARS_A = {1: ['+', '=', '|', '+', '+', '+',],
                3: ['+', '+', '|', '+', '+', '+',],
 }
 
-
-_RESULT = {
-    TestResult.PASSED: GREEN + '✔' + RESET,
-    TestResult.FAILED: RED + '✘' + RESET,
-    TestResult.EXPECTED_FAIL: CYAN + '✘' + RESET,
-    TestResult.INCOMPLETE: YELLOW + '⁇' + RESET,
-    TestResult.ABORTED: YELLOW + '‼' + RESET,
-}
-
-
-_RESULT_A = {
-    TestResult.PASSED: GREEN + 'PASSED' + RESET,
-    TestResult.FAILED: RED + 'FAILED' + RESET,
-    TestResult.EXPECTED_FAIL: CYAN + 'EXPECTED_FAIL' + RESET,
-    TestResult.INCOMPLETE: YELLOW + 'INCOMPLETE' + RESET,
-    TestResult.ABORTED: YELLOW + 'ABORTED' + RESET,
-}
 
 
 def white(text):
@@ -118,6 +101,7 @@ def lt_red(text):
 
 def inverse_red(text):
     return INVERSE_ON+RED+text+RESET+INVERSE_OFF
+
 
 class BaseReport:
 
@@ -179,10 +163,10 @@ class DefaultReport(BaseReport):
         self._file = None
 
     def on_test_start(self, testcase, name=None, time=None):
-        print("{!s}: start {!s}".format(blue(str(time.time())), name), file=self._file)
+        print("  {!s}: start {!s}".format(blue(str(time.time())), name), file=self._file)
 
     def on_test_end(self, testcase, time=None):
-        print("  {!s}: test end.".format(blue(str(time.time()))), file=self._file)
+        print("    {!s}: test end.".format(blue(str(time.time()))), file=self._file)
 
     def on_test_passed(self, testcase, message=None):
         print("    {}: {!s}".format(green("PASSED"), message), file=self._file)
@@ -219,11 +203,11 @@ class DefaultReport(BaseReport):
     def on_suite_info(self, testsuite, message=None):
         print("  info: {!s}".format(message), file=self._file)
 
-    def on_run_start(self, runner, time=None):
-        print("{!s}: runner start.".format(blue(str(time.time()))), file=self._file)
+    def on_run_start(self, runner, timestamp=None):
+        print("{!s}: runner start.".format(blue(timestamp)), file=self._file)
 
-    def on_run_end(self, runner, time=None):
-        print("{!s}: runner end.".format(blue(str(time.time()))), file=self._file)
+    def on_run_end(self, runner):
+        print("runner end.", file=self._file)
 
     def on_run_arguments(self, runner, message=None):
         print((CYAN+"runner arguments:"+RESET+" {!s}").format(message), file=self._file)
@@ -240,6 +224,35 @@ class DefaultReport(BaseReport):
 
 
 class DefaultReportUnicode(DefaultReport):
-    pass
 
+    def on_test_passed(self, testcase, message=None):
+        print("    {}: {!s}".format(green('✔'), message), file=self._file)
+
+    def on_test_incomplete(self, testcase, message=None):
+        print("    {}: {!s}".format(yellow('⁇'), message), file=self._file)
+
+    def on_test_failure(self, testcase, message=None):
+        print("    {}: {!s}".format(red('✘'), message), file=self._file)
+
+    def on_test_expected_failure(self, testcase, message=None):
+        print("    {}: {!s}".format(cyan('✘'), message), file=self._file)
+
+    def on_test_abort(self, testcase, message=None):
+        print("    {}: {!s}".format(inverse_red('‼'), message), file=self._file)
+
+    def on_run_start(self, runner, timestamp=None):
+        UL, hor, vert, UR, LL, LR = _BOXCHARS[1]
+        text = "{!s:12.12s}".format(timestamp)
+        tt = "{}{}{}".format(UL, hor*(len(text)+2), UR)
+        bt = "{}{}{}".format(LL, hor*(len(text)+2), LR)
+        ml = "{} {} {}".format(vert, text, vert)
+        print(tt, ml, bt, sep="\n", file=self._file)
+
+    def on_suite_start(self, testsuite, time=None):
+        UL, hor, vert, UR, LL, LR = _BOXCHARS[2]
+        text = "{!s:12.12s} {:32.32s}".format(time.time(), testsuite.test_name)
+        tt = "{}{}{}".format(UL, hor*(len(text)+2), UR)
+        bt = "{}{}{}".format(LL, hor*(len(text)+2), LR)
+        ml = "{} {} {}".format(vert, text, vert)
+        print(tt, ml, bt, sep="\n", file=self._file)
 

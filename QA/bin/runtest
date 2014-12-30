@@ -4,27 +4,8 @@
 # Keith Dart <keith@dartworks.biz>
 
 import sys
-
-from pycopia import debugger
-from pycopia.QA import config
-from pycopia.QA import testrunner
 from pycopia.QA import shellinterface
 
-def runtest(argv):
-    cfg = config.get_config()
-    tr = testrunner.TestRunner(cfg)
-    tri = shellinterface.TestRunnerInterface(tr)
-    try:
-        return tri.run(argv)
-    except testrunner.TestRunnerError:
-        ex, val, tb = sys.exc_info()
-        if cfg.flags.DEBUG:
-            debugger.post_mortem(tb, ex, val)
-            return 200
-        else:
-            import traceback
-            traceback.print_exception(ex, val, tb)
-            return 200
 
-sys.exit(runtest(sys.argv))
+sys.exit(shellinterface.runtest(sys.argv))
 

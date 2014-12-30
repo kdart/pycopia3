@@ -39,7 +39,7 @@ from pytz import timezone
 from peewee import *
 
 from pycopia import basicconfig
-from pycopia.aid import hexdigest, unhexdigest, removedups, NULL
+from pycopia.aid import hexdigest, unhexdigest, NULL
 from pycopia.QA.exceptions import (ModelError, ModelAttributeError,
     ModelValidationError)
 from pycopia.QA import constants
@@ -661,6 +661,13 @@ class FunctionalArea(BaseModel):
         return "FunctionalArea: {}".format(self.name)
 
 
+class Function(BaseModel):
+    name = CharField(max_length=80, unique=True)
+    description = TextField(null=True)
+
+    class Meta:
+        db_table = 'function'
+
 class EnvironmentAttributeType(BaseModel):
     name = CharField(max_length=80, unique=True)
     description = TextField(null=True)
@@ -669,26 +676,126 @@ class EnvironmentAttributeType(BaseModel):
     class Meta:
         db_table = 'environmentattribute_type'
 
+    @classmethod
+    def get_attribute_list(cls):
+        return cls.select(cls.name, cls.value_type).tuples()
+
 
 class Environments(BaseModel):
+    ROW_DISPLAY = ("name", "owner")
     name = CharField(max_length=255, unique=True)
-    owner = ForeignKeyField(db_column='owner_id', null=True, rel_model=User, to_field='id',
-            related_name="environments", on_update="CASCADE", on_delete="SET NULL")
+    owner = ForeignKeyField(db_column='owner_id', null=True,
+        rel_model=User, to_field='id', related_name="environments",
+        on_update="CASCADE", on_delete="SET NULL")
 
     class Meta:
         db_table = 'environments'
 
+    def __str__(self):
+        return self.name
+
+    def update_attribute(self, attrname, value):
+        attrtype = EnvironmentAttributeType.get_by_name(attrname)
+        EA = _EnvironmentAttributes
+        try:
+            existing = EA.select().where(
+                    (EA.equipment==self) & (EA.type==attrtype)).get()
+        except DoesNotExist:
+            self.set_attribute(attrname, value)
+        else:
+            with database.atomic():
+                existing.value = coerce_value_type(attrtype.value_type, value)
+
+    def set_attribute(self, attrname, value):
+        attrtype = EnvironmentAttributeType.get_by_name(attrname)
+        value = coerce_value_type(attrtype.value_type, value)
+        with database.atomic():
+            _EnvironmentAttributes(equipment=self, type=attrtype, value=value)
+
+    def get_attribute(self, attrname):
+        attrtype = EnvironmentAttributeType.get_by_name(attrname)
+        EA = _EnvironmentAttributes
+        try:
+            ea = EA.select().where((EA.equipment==self) & (EA.type==attrtype)).get()
+        except DoesNotExist:
+            raise ModelAttributeError("No attribute {!r} set.".format(attrname))
+        return ea.value
+
+    def del_attribute(self, attrname):
+        attrtype = EnvironmentAttributeType.get_by_name(attrname)
+        EA = _EnvironmentAttributes
+        try:
+            ea = EA.select().where((EA.equipment==self) & (EA.type==attrtype)).get()
+        except DoesNotExist:
+            pass
+        else:
+            with database.atomic():
+                ea.delete()
+
+    @staticmethod
+    def get_attribute_list():
+        return EnvironmentAttributeType.get_attribute_list()
+
     def get_supported_roles(self):
-        rv = []
-        for te in TestEquipment.select().where(TestEquipment.environment==self):
+        roles = set()
+        for te in Testequipment.select().where(Testequipment.environment==self):
             for role in te.roles:
-                rv.append(role.name)
-        return removedups(rv)
+                roles.add(role.function.name)
+        return roles
+
+    def get_DUT(self):
+        qq = Testequipment.select().where((Testequipment.environment == self) &
+                (Testequipment.DUT == True))
+        eq = qq.first()
+        if eq is None:
+            raise ModelError("DUT is not defined in environment '{}'.".format(self.name))
+        return eq.equipment
+
+    def add_testequipment(self, eq, rolename):
+        if rolename == "DUT":
+            with database.atomic():
+                te = Testequipment.create(
+                        DUT=True, environment=self, equipment=eq)
+        else:
+            func = Function.select().where(Function.name == rolename).get()
+            with database.atomic():
+                te = Testequipment.create(
+                        DUT=False, environment=self, equipment=eq)
+                _TestequipmentRoles.create(testequipment=te, function=func)
+
+
+class Testequipment(BaseModel):
+    DUT = BooleanField(db_column='DUT')
+    environment = ForeignKeyField(db_column='environment_id',
+            rel_model=Environments, to_field='id', related_name="testequipment",
+            on_update="CASCADE", on_delete="CASCADE")
+    equipment = ForeignKeyField(db_column='equipment_id',
+            rel_model=Equipment, to_field='id', related_name="testequipment",
+            on_update="CASCADE", on_delete="CASCADE")
+
+    class Meta:
+        db_table = 'testequipment'
+        indexes = (
+            (("environment", "equipment"), True),
+            )
+
+
+class _TestequipmentRoles(BaseModel):
+    testequipment = ForeignKeyField(db_column='testequipment_id',
+            rel_model=Testequipment, to_field='id', related_name="roles")
+    function = ForeignKeyField(db_column='function_id',
+            rel_model=Function, to_field='id')
+
+    class Meta:
+        db_table = 'testequipment_roles'
+        primary_key = CompositeKey('testequipment', 'function')
 
 
 class _EnvironmentAttributes(BaseModel):
-    environment = ForeignKeyField(db_column='environment_id', rel_model=Environments, to_field='id')
-    type = ForeignKeyField(db_column='type_id', rel_model=EnvironmentAttributeType, to_field='id')
+    environment = ForeignKeyField(db_column='environment_id',
+        rel_model=Environments, to_field='id', related_name="attributes")
+    type = ForeignKeyField(db_column='type_id',
+        rel_model=EnvironmentAttributeType, to_field='id')
     value = PickleField()
 
     class Meta:
@@ -697,9 +804,10 @@ class _EnvironmentAttributes(BaseModel):
 
 
 class _EquipmentAttributes(BaseModel):
-    equipment = ForeignKeyField(db_column='equipment_id', rel_model=Equipment, to_field='id',
-            related_name="attributes")
-    type = ForeignKeyField(db_column='type_id', rel_model=AttributeType, to_field='id')
+    equipment = ForeignKeyField(db_column='equipment_id',
+            rel_model=Equipment, to_field='id', related_name="attributes")
+    type = ForeignKeyField(db_column='type_id',
+            rel_model=AttributeType, to_field='id')
     value = PickleField()
 
     class Meta:
@@ -716,14 +824,6 @@ class _EquipmentModelAttributes(BaseModel):
     class Meta:
         db_table = 'equipment_model_attributes'
         primary_key = CompositeKey('equipmentmodel', 'type')
-
-
-class Function(BaseModel):
-    name = CharField(max_length=80, unique=True)
-    description = TextField(null=True)
-
-    class Meta:
-        db_table = 'function'
 
 
 class Software(BaseModel):
@@ -1090,31 +1190,6 @@ class _TestSuitesTestcases(BaseModel):
         primary_key = CompositeKey('testcase', 'testsuite')
 
 
-class Testequipment(BaseModel):
-    DUT = BooleanField(db_column='DUT')
-    environment = ForeignKeyField(db_column='environment_id',
-            rel_model=Environments, to_field='id', related_name="equipment",
-            on_update="CASCADE", on_delete="CASCADE")
-    equipment = ForeignKeyField(db_column='equipment_id',
-            rel_model=Equipment, to_field='id', related_name="testequipment",
-            on_update="CASCADE", on_delete="CASCADE")
-
-    class Meta:
-        db_table = 'testequipment'
-        indexes = (
-            (("environment", "equipment"), True),
-            )
-
-class _TestequipmentRoles(BaseModel):
-    testequipment = ForeignKeyField(db_column='testequipment_id',
-            rel_model=Testequipment, to_field='id')
-    function = ForeignKeyField(db_column='function_id',
-            rel_model=Function, to_field='id')
-
-    class Meta:
-        db_table = 'testequipment_roles'
-        primary_key = CompositeKey('testequipment', 'function')
-
 
 # Attribute type coercion to specified type.
 
@@ -1288,7 +1363,7 @@ if __name__ == "__main__":
     #print "Interfaces:"
     #print eq.interfaces
     #eq.add_interface(sess, "eth1", interface_type="ethernetCsmacd", ipaddr="172.17.101.2/24")
-    print ("Capabilities:")
+    #print ("Capabilities:")
     #print (list(eq.capabilities))
 
 #    for res in  TestResults.get_latest_results(sess):
@@ -1324,4 +1399,9 @@ if __name__ == "__main__":
 #            print(intf)
 #    print(type(TestSuite.get_by_implementation(sess, "testcases.unittests.WWW.mobileget.MobileSendSuite")))
 #    print (TestSuite.get_suites(sess))
+
+    print("Environments")
+    env = Environments.select().first()
+    print(env)
+    print(env.get_supported_roles())
 
