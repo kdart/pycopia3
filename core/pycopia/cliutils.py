@@ -309,7 +309,7 @@ def edit_text(text, prompt="Edit text"):
 
 
 def print_menu_list(clist, lines=LINES, columns=COLUMNS):
-    """Print a list with leading numeric menu choices. Use two columns in necessary."""
+    """Print a list with leading numeric menu choices. Use two columns if necessary."""
     fmt = "{{:3d}}: {{:{cols}.{cols}}}".format(cols=columns-6)
     if columns > 80:
         fmt2 = "{{:3d}}: {{:{cols}.{cols}}} | {{:3d}}: {{:{cols}.{cols}}}".format(cols=(columns-14)//2)
@@ -317,9 +317,9 @@ def print_menu_list(clist, lines=LINES, columns=COLUMNS):
         i1, i2 = 1, h+1
         for c1, c2 in zip(clist[:h], clist[h:]):
             if c2:
-                print (fmt2.format(i1, str(c1)[-(columns//2)+7:], i2, str(c2)[-(columns//2)+7:]))
+                print(fmt2.format(i1, str(c1)[-(columns//2)+7:], i2, str(c2)[-(columns//2)+7:]))
             else:
-                print (fmt.format(i1, str(c1)[-columns+7:]))
+                print(fmt.format(i1, str(c1)[-columns+7:]))
             i1 += 1
             i2 += 1
     else:
@@ -328,7 +328,7 @@ def print_menu_list(clist, lines=LINES, columns=COLUMNS):
 
 
 def print_menu_map(mapping, lines=LINES, columns=COLUMNS):
-    """Print a list with leading numeric menu choices. Use two columns in necessary."""
+    """Print a list with leading numeric menu choices. Use two columns if necessary."""
     keys = sorted(mapping.keys())
     first = keys[0]
     fmt  = "{{!s:>4s}}: {{:{cols}.{cols}}}".format(cols=columns-6)

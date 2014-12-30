@@ -19,6 +19,7 @@ General text functions. You may import this instead of the stock
 
 """
 
+import io
 import re
 import binascii
 
@@ -241,7 +242,7 @@ def _tolist(obj):
     _to = type(obj)
     if _to is str:
         return [obj]
-    elif issubclass(_to, file) or hasattr(obj, "readlines"):
+    elif issubclass(_to, io.IOBase) or hasattr(obj, "readlines"):
         return obj.readlines()
     else:
         return list(obj)
