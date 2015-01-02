@@ -31,20 +31,8 @@ from pycopia.OS import procfs
 from pycopia import passwd
 from pycopia import basicconfig
 from pycopia import module
-from pycopia import proctools
 
 from pycopia.inet.scgi import SCGIServer
-
-
-class ProcessManager(object):
-    """Defines the process model the server uses."""
-    def __init__(self, pwent=None):
-        self._procmanager = proctools.get_procmanager()
-        self._pwent = pwent
-
-    def __call__(self, func):
-        self._procmanager.submethod(func, pwent=self._pwent)
-
 
 
 # Factory function creats a server instance with our interface
@@ -55,10 +43,9 @@ def get_server(config):
         pwent = passwd.getpwnam(username)
     else:
         pwent = None
-    pm = ProcessManager(pwent)
 
     cf = Config("/etc/pycopia", defaults=config)
-    app = Flask(config["APP"], config=cf, static_url_path="/media")
+    app = Flask(config["APP"], config=cf, static_url_path="/static")
 
     if "MIDDLEWARE" in config:
         for mwtuple in config["MIDDLEWARE"]:
@@ -70,7 +57,6 @@ def get_server(config):
         logging.loglevel_debug()
 
     return SCGIServer(app,
-            procmanager=pm,
             bindAddress=config.SOCKETPATH,
             umask=config.get("SOCKET_UMASK", 0),
             debug=config.DEBUG)
@@ -168,10 +154,8 @@ def run_server(argv):
         lf = logfile.ManagedStdio(logfilename)
         daemonize.daemonize(lf, pidfile=pidfile)
     else: # for controller
-        fo = open(pidfile, "w")
-        fo.write("%s\n" % (os.getpid(),))
-        fo.close()
-        del fo
+        with open(pidfile, "w") as fo:
+            fo.write("{}\n"format(os.getpid()))
 
     server = get_server(config)
     return int(server.run())

@@ -29,7 +29,8 @@ made to any installed lighttpd configuration won't be used.
 
 The lighttpd build was configured like this:
 
-./configure --prefix=/usr --with-fam --with-openssl --with-attr --with-pcre --with-zlib --disable-ipv6
+./configure --prefix=/usr --with-fam --with-openssl --with-attr --with-pcre
+    --with-zlib --disable-ipv6
 
 """
 
@@ -40,6 +41,7 @@ import socket
 
 from pycopia import basicconfig
 from pycopia import passwd
+from pycopia.OS import procutils
 
 LTCONFIG = "/etc/pycopia/lighttpd/lighttpd.conf"
 # Master site config. controls all virtual host configuration.
@@ -55,9 +57,8 @@ def start(config):
         daemonize.daemonize(lf, pidfile=config.PIDFILE)
     else:
         lf = sys.stdout
-        fo = file(config.PIDFILE, "w")
-        fo.write("%s\n" % (os.getpid(),))
-        fo.close()
+        with open(config.PIDFILE, "w") as fo:
+            fo.write("{}\n".format(os.getpid()))
     start_proc_manager(config, lf)
 
 
@@ -66,11 +67,13 @@ def setup(config):
     siteowner = passwd.getpwnam(config.SITEOWNER)
     logroot = config.get("LOGROOT", "/var/log/lighttpd")
     fqdn = socket.getfqdn()
+
     def _mkdir(path):
         if not os.path.isdir(path):
             os.mkdir(path, 0o755)
             os.chown(path, siteowner.uid, siteowner.gid)
-    for vhost in list(config.VHOSTS.keys()):
+
+    for vhost in config.VHOSTS.keys():
         vhostdir = config.SITEROOT + "/" + vhost
         vhostlogdir = logroot + "/" + vhost
         if not os.path.isdir(vhostlogdir):
@@ -83,6 +86,7 @@ def setup(config):
                 _mkdir(vhostdir)
             _mkdir(vhostdir + "/htdocs")
             _mkdir(vhostdir + "/htdocs-secure")
+            _mkdir(vhostdir + "/static")
             _mkdir(vhostdir + "/media")
             _mkdir(vhostdir + "/media/js")
             _mkdir(vhostdir + "/media/css")
@@ -91,7 +95,6 @@ def setup(config):
 
 def start_proc_manager(config, logfile):
     from pycopia import proctools
-    from pycopia import scheduler
     from pycopia import asyncio
 
     pm = proctools.get_procmanager()
@@ -99,16 +102,24 @@ def start_proc_manager(config, logfile):
 
     for name, serverlist in list(config.VHOSTS.items()):
         for servername in serverlist:
+            if isinstance(servername, tuple):
+                servername, proto = servername
+            else:
+                proto = "fcgi"
             print("Starting %s for %s." % (servername, name))
-            p = pm.spawnpipe("%s/fcgi_server -n %s" % (libexec, servername), persistent=True, logfile=logfile)
+            if proto == "scgi":
+                cmd = "{}/scgi_server -n {}".format(libexec, servername)
+            else:
+                cmd = "{}/fcgi_server -n {}".format(libexec, servername)
+            p = pm.spawnpipe(cmd, persistent=True, logfile=logfile)
             asyncio.poller.register(p)
-            #scheduler.sleep(1.0) # give it time to init...
     if config.USEFRONTEND:
-        lighttpd = proctools.which("lighttpd")
+        lighttpd = procutils.which("lighttpd")
         if asyncio.poller:
-            pm.spawnpipe("%s -D -f %s" % (lighttpd, LTCONFIG), persistent=True, logfile=logfile)
-        else: # no servers, just run frontend alone
-            pm.spawnpipe("%s -f %s" % (lighttpd, LTCONFIG))
+            pm.spawnpipe("{} -D -f {}".format(lighttpd, LTCONFIG),
+                         persistent=True, logfile=logfile)
+        else:  # no servers, just run frontend alone
+            pm.spawnpipe("{} -f {}".format(lighttpd, LTCONFIG))
     try:
         asyncio.poller.loop()
         print("No servers, exited loop.")
@@ -157,7 +168,7 @@ def check(config):
     "Check the lighttpd configuration."
     from pycopia import proctools
     pm = proctools.get_procmanager()
-    lighttpd = proctools.which("lighttpd")
+    lighttpd = procutils.which("lighttpd")
     proc = pm.spawnpipe("%s -p -f %s" % (lighttpd, LTCONFIG))
     out = proc.read()
     es = proc.wait()
@@ -199,6 +210,7 @@ Where command is one of:
     check   - Emit the generated lighttpd config, so you can check it.
 """
 
+
 def main(argv):
     import getopt
     daemonize = True
@@ -231,7 +243,7 @@ def main(argv):
         elif opt == "-p":
             pidfilename = optarg
         elif opt == "-d":
-            from pycopia import autodebug # Sets up auto debugging handler.
+            from pycopia import autodebug  # noqa
 
     glbl = {"FQDN": dname or socket.getfqdn()}
 
@@ -263,5 +275,3 @@ def main(argv):
     else:
         print(_doc % (servername,))
         return 2
-
-

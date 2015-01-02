@@ -31,48 +31,52 @@ SITE_CONFIG = "/etc/pycopia/website.conf"
 
 
 class LighttpdConfig(object):
-    GLOBAL = """
-server.port          = %(port)s
-"""
+    GLOBAL = """\n{name} = {value}\n"""
+    PORT = """\nserver.port = {port}\n"""
 
 # See: http://redmine.lighttpd.net/projects/lighttpd/wiki/Docs:SSL
     GLOBAL_SSL = """
-$SERVER["socket"] == ":%(sslport)s" {
+$SERVER["socket"] == ":{sslport}" {{
   ssl.engine    = "enable"
   ssl.cipher-list = "ECDHE-RSA-AES256-SHA384:AES256-SHA256:RC4-SHA:RC4:HIGH:!MD5:!aNULL:!EDH:!AESGCM"
   ssl.ca-file   = "/etc/pycopia/ssl/ca-certs.crt"
   ssl.pemfile   = "/etc/pycopia/ssl/localhost.crt"
   server.document-root = "/var/www/localhost/htdocs-secure"
-}
-"""
-
+}}
+"""  # noqa
+    # SCGI support
     SCGI_HEAD = "  scgi.server = ("
-    SCGI_TEMPLATE = """
-    "/%(name)s" => (
+    # FCGI support
+    FCGI_HEAD = "  fcgi.server = ("
+    CGI_TEMPLATE = """
+    "/{name}" => (
         (
-            "socket" => "%(socketpath)s",
+            "socket" => "{socketpath}",
             "check-local" => "disable",
         )
     ),
 """
-    SCGI_TAIL = "  )\n"
+    CGI_TAIL = "  )\n"
 
     VHOST_TEMPLATE = """
-$HTTP["host"] == "%(hostname)s" {
-  server.document-root = "/var/www/%(hostname)s/htdocs/"
-  accesslog.filename = var.logdir + "/%(hostname)s/access.log"
+$HTTP["host"] == "{hostname}" {{
+  server.document-root = "/var/www/{hostname}/htdocs/"
+  accesslog.filename = var.logdir + "/{hostname}/access.log"
   #server.error-handler-404 = "/error-404.html"
-  alias.url = ("/media/" => "/var/www/%(hostname)s/media/")
-  %(SSL)s
+  alias.url = (
+        "/media/" => "/var/www/{hostname}/media/",
+        "/static/" => "/var/www/{hostname}/static/"
+        )
+  {SSL}
 """
     VHOST_TEMPLATE_TAIL = "}\n"
 
-    VHOST_TEMPLATE_SSL = """ ssl.pemfile = "/etc/pycopia/ssl/%(hostname)s.crt" """
+    VHOST_TEMPLATE_SSL = ' ssl.pemfile = "/etc/pycopia/ssl/{hostname}.crt" '
 
     REDIR_TEMPLATE = """
-$HTTP["host"] == "%(hostname)s" {
-    url.redirect = ( ".*" => "http://%(fqdn)s" )
-}
+$HTTP["host"] == "{hostname}" {{
+    url.redirect = ( ".*" => "http://{fqdn}" )
+}}
 """
 
     def __init__(self):
@@ -80,35 +84,49 @@ $HTTP["host"] == "%(hostname)s" {
         self._myhostname = os.uname()[1].split(".")[0]
 
     def add_global(self, **kwargs):
-        self._parts.append(self.GLOBAL % kwargs)
+        for name, value in kwargs.items():
+            self._parts.append(self.GLOBAL.format(name=name, value=value))
+
+    def add_port(self, port):
+        self._parts.append(self.PORT.format(port=port))
 
     def add_vhost(self, hostname, servers, usessl=False):
         """Add a virtual host section.
-        Provide the virtual host name and a list of SCGI servers to invoke.
+        Provide the virtual host name and a list of backend servers to invoke.
         """
         if usessl:
-            ssl = self.VHOST_TEMPLATE_SSL % {"hostname": hostname}
+            ssl = self.VHOST_TEMPLATE_SSL.format(hostname=hostname)
         else:
             ssl = ""
-        self._parts.append(self.VHOST_TEMPLATE % {"hostname": hostname, "SSL": ssl})
+        self._parts.append(self.VHOST_TEMPLATE.format(hostname=hostname,
+                                                      SSL=ssl))
         if servers:
-            self._parts.append(self.SCGI_HEAD)
             for server in servers:
-                cf = _get_server_config(server)
-                self._parts.append(self.SCGI_TEMPLATE % {
-                        "name": server,
-                        "socketpath":cf.SOCKETPATH,
-                        })
-            self._parts.append(self.SCGI_TAIL)
+                if isinstance(server, tuple):
+                    server, proto = server
+                else:
+                    proto = "fcgi"
+                if proto == "scgi":
+                    self._parts.append(self.SCGI_HEAD)
+                else:
+                    self._parts.append(self.FCGI_HEAD)
+                self._parts.append(self.CGI_TEMPLATE.format(
+                    name=server,
+                    socketpath="/tmp/{}.sock".format(server))
+                )
+            self._parts.append(self.CGI_TAIL)
+
         self._parts.append(self.VHOST_TEMPLATE_TAIL)
-        # Redirect plain host name to FQDN. You might see this on local networks.
+        # Redirect plain host name to FQDN. You might see this on local
+        # networks.
         if "." in hostname:
             hp = hostname.split(".")[0]
             if hp == self._myhostname:
-                self._parts.append(self.REDIR_TEMPLATE % {"hostname":hp, "fqdn": hostname})
+                self._parts.append(
+                    self.REDIR_TEMPLATE.format(hostname=hp, fqdn=hostname))
 
     def add_ssl_support(self, sslport):
-        self._parts.append(self.GLOBAL_SSL % {"sslport":sslport})
+        self._parts.append(self.GLOBAL_SSL.format(sslport=sslport))
 
     def __str__(self):
         return "".join(self._parts)
@@ -116,20 +134,6 @@ $HTTP["host"] == "%(hostname)s" {
     def emit(self, fo):
         for part in self._parts:
             fo.write(part)
-
-
-def _get_server_config(servername):
-    logfilename = "/var/log/%s.log" % (servername,)
-    cffilename = "/etc/pycopia/%s.conf" % (servername,)
-    pidfile="/var/run/%s.pid" % (servername,)
-    socketpath = "/tmp/%s.sock" % (servername,)
-    config = basicconfig.get_config(cffilename,
-                CONFIGFILE=cffilename,
-                PIDFILE=pidfile,
-                SOCKETPATH=socketpath,
-                LOGFILENAME=logfilename,
-                SERVERNAME=servername)
-    return config
 
 
 def get_site_config(filename=SITE_CONFIG):
@@ -140,12 +144,16 @@ def get_site_config(filename=SITE_CONFIG):
 def config_lighttpd(argv, filelike):
     config = get_site_config()
     ltc = LighttpdConfig()
-    ltc.add_global(port=config.PORT)
+    ltc.add_port(config.PORT)
     sslport = config.get("SSLPORT", None)
     if sslport:
         ltc.add_ssl_support(sslport)
-    for name, serverlist in list(config.VHOSTS.items()):
-        ssl_used = bool(sslport) and os.path.exists("/etc/pycopia/ssl/%s.crt" % (name,))
+    for name, serverlist in config.VHOSTS.items():
+        ssl_used = (bool(sslport) and
+                    os.path.exists("/etc/pycopia/ssl/{}.crt".format(name)))
         ltc.add_vhost(name, serverlist, ssl_used)
     ltc.emit(filelike)
 
+if __name__ == '__main__':
+    import sys
+    config_lighttpd(["config_lighttpd"], sys.stdout)

@@ -24,4 +24,6 @@ LIBEXEC = "/usr/libexec/pycopia"
 VHOSTS = {
     # virtual host names: list of fcgi servers to start.
     FQDN: ["auth", "myapp"],
+    "www.example1.com": ["auth", "myapp"],
+    "www.example2.com": [("auth", "fcgi"), ("scgiapp", "scgi")],
 }
