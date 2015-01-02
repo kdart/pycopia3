@@ -1,7 +1,5 @@
-#!/usr/bin/python2.7
+#!/usr/bin/python3.4
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
-#
-#    Copyright (C) 1999-2006  Keith Dart <keith@kdart.com>
 #
 #    This library is free software; you can redistribute it and/or
 #    modify it under the terms of the GNU Lesser General Public
@@ -13,18 +11,14 @@
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 #    Lesser General Public License for more details.
 
-
-
-
-
 """
 Run things as root (or another user) via sudo.
 
 """
 from pycopia import proctools
-from pycopia.aid import IF
+from pycopia.OS import procutils
 
-SUDO = proctools.which("sudo")
+SUDO = procutils.which("sudo")
 
 def sudo(command, user=None, password=None, extraopts=None, logfile=None):
     opts = "-S %s" % ("-u %s" % user if user else "")

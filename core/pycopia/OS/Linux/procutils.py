@@ -23,6 +23,12 @@ import os
 
 from pycopia.OS.exitstatus import ExitStatus
 
+
+class NotFoundError(ValueError):
+    """Raised when the `which` function cannot find the given command."""
+    pass
+
+
 def run_as(pwent, umask=0o22):
     """Drop privileges to given user's password entry, and set up
     environment. Assumes the parent process has root privileges.
@@ -51,4 +57,15 @@ def system(cmd):
     """Like os.system(), except returns ExitStatus object."""
     sts = os.system(cmd)
     return ExitStatus(sts, cmd)
+
+
+def which(basename):
+    """Returns the fully qualified path name (by searching PATH) of the given
+    program name.
+    """
+    for pe in os.environ["PATH"].split(os.pathsep):
+        testname = os.path.join(pe, basename)
+        if os.access(testname, os.X_OK):
+            return testname
+    raise NotFoundError("which: no %r found in $PATH." % (basename,))
 

@@ -4,9 +4,6 @@
 # Copyright (c) 2002, 2003, 2005, 2006 Allan Saddi <allan@saddi.com>
 # All rights reserved.
 
-# Modified for Pycopia (use subprocesses instead of threads) by
-# Keith Dart <keith.dart@gmail.com>.
-#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
 # are met:
@@ -52,8 +49,6 @@ non-FastCGI context. If you want to force CGI behavior, set the environment
 variable FCGI_FORCE_CGI to "Y" or "y".
 """
 
-__version__ = '$Revision: 699 $'
-
 __all__ = ['FCGIServer']
 
 import sys
@@ -66,7 +61,7 @@ import errno
 import traceback
 
 import socket
-from pycopia.aid import systemcall, NULL
+from pycopia.aid import NULL
 
 socket.SHUT_WR = 1
 
@@ -118,7 +113,7 @@ FCGI_UnknownTypeBody = '!B7x'
 FCGI_EndRequestBody_LEN = struct.calcsize(FCGI_EndRequestBody)
 FCGI_UnknownTypeBody_LEN = struct.calcsize(FCGI_UnknownTypeBody)
 
-WSGI_VERSION = (1,0)
+WSGI_VERSION = (1, 0)
 
 import time
 
@@ -145,7 +140,7 @@ def close_on_exec(fd):
     fcntl.fcntl(fd, fcntl.F_SETFD, flags)
 
 
-class InputStream(object):
+class InputStream:
     """
     File-like object representing FastCGI input streams (FCGI_STDIN and
     FCGI_DATA). Supports the minimum methods required by WSGI spec.
@@ -158,10 +153,10 @@ class InputStream(object):
 
         self._buf = ''
         self._bufList = []
-        self._pos = 0 # Current read position.
-        self._avail = 0 # Number of bytes currently available.
+        self._pos = 0  # Current read position.
+        self._avail = 0  # Number of bytes currently available.
 
-        self._eof = False # True when server has sent EOF notification.
+        self._eof = False  # True when server has sent EOF notification.
 
     def _shrinkBuffer(self):
         """Gets rid of already read data (since we can't rewind)."""
@@ -256,7 +251,7 @@ class InputStream(object):
             self._avail += len(data)
 
 
-class OutputStream(object):
+class OutputStream:
     """
     FastCGI output stream (FCGI_STDOUT/FCGI_STDERR). By default, calls to
     write() or writelines() immediately result in Records being sent back
@@ -267,7 +262,7 @@ class OutputStream(object):
         self._req = req
         self._type = type
         self._buffered = buffered
-        self._bufList = [] # Used if buffered is True
+        self._bufList = []  # Used if buffered is True
         self.dataWritten = False
         self.closed = False
 
@@ -319,7 +314,8 @@ class OutputStream(object):
             self._conn.writeRecord(rec)
             self.closed = True
 
-class TeeOutputStream(object):
+
+class TeeOutputStream:
     """
     Simple wrapper around two or more output file-like objects that copies
     written data to all streams.
@@ -339,7 +335,8 @@ class TeeOutputStream(object):
         for f in self._streamList:
             f.flush()
 
-class StdoutWrapper(object):
+
+class StdoutWrapper:
     """
     Wrapper for sys.stdout so we know if data has actually been written.
     """
@@ -358,6 +355,7 @@ class StdoutWrapper(object):
 
     def __getattr__(self, name):
         return getattr(self._file, name)
+
 
 def decode_pair(s, pos=0):
     """
@@ -387,6 +385,7 @@ def decode_pair(s, pos=0):
 
     return (pos, (name, value))
 
+
 def encode_pair(name, value):
     """
     Encodes a name/value pair.
@@ -406,8 +405,9 @@ def encode_pair(name, value):
         s += struct.pack('!L', valueLength | 0x80000000)
 
     return s + name + value
-    
-class Record(object):
+
+
+class Record:
     """
     A FastCGI Record.
 
@@ -431,15 +431,15 @@ class Record(object):
         while length:
             try:
                 data = sock.recv(length)
-            except socket.error as e:
-                if e[0] == errno.EAGAIN:
+            except OSError as e:
+                if e.errno == errno.EAGAIN:
                     select.select([sock], [], [])
                     continue
-                elif e[0] == errno.EINTR:
+                elif e.errno == errno.EINTR:
                     continue
                 else:
                     raise
-            if not data: # EOF
+            if not data:  # EOF
                 break
             dataList.append(data)
             dataLen = len(data)
@@ -457,15 +457,10 @@ class Record(object):
 
         if length < FCGI_HEADER_LEN:
             raise EOFError
-        
-        self.version, self.type, self.requestId, self.contentLength, \
-                      self.paddingLength = struct.unpack(FCGI_Header, header)
 
-        if __debug__: _debug(9, 'read: fd = %d, type = %d, requestId = %d, '
-                             'contentLength = %d' %
-                             (sock.fileno(), self.type, self.requestId,
-                              self.contentLength))
-        
+        (self.version, self.type, self.requestId, self.contentLength,
+            self.paddingLength) = struct.unpack(FCGI_Header, header)
+
         if self.contentLength:
             try:
                 self.contentData, length = self._recvall(sock,
@@ -490,8 +485,8 @@ class Record(object):
         while length:
             try:
                 sent = sock.send(data)
-            except socket.error as e:
-                if e[0] == errno.EAGAIN:
+            except OSError as e:
+                if e.errno == errno.EAGAIN:
                     select.select([], [sock], [])
                     continue
                 else:
@@ -504,11 +499,6 @@ class Record(object):
         """Encode and write a Record to a socket."""
         self.paddingLength = -self.contentLength & 7
 
-        if __debug__: _debug(9, 'write: fd = %d, type = %d, requestId = %d, '
-                             'contentLength = %d' %
-                             (sock.fileno(), self.type, self.requestId,
-                              self.contentLength))
-
         header = struct.pack(FCGI_Header, self.version, self.type,
                              self.requestId, self.contentLength,
                              self.paddingLength)
@@ -519,7 +509,7 @@ class Record(object):
             self._sendall(sock, '\x00'*self.paddingLength)
 
 
-class Request(object):
+class Request:
     """
     Represents a single FastCGI request.
 
@@ -554,8 +544,10 @@ class Request(object):
             protocolStatus = FCGI_REQUEST_COMPLETE
             appStatus = 0
 
-        if __debug__: _debug(1, 'protocolStatus = %d, appStatus = %d' %
-                             (protocolStatus, appStatus))
+        if __debug__:
+            _debug(1, 'protocolStatus = {}, appStatus = {}'.format(
+                protocolStatus, appStatus))
+
         self._flush()
         self._end(appStatus, protocolStatus)
 
@@ -567,7 +559,7 @@ class Request(object):
         self.stderr.close()
 
 
-class Connection(object):
+class Connection:
     """
     A Connection with the web server.
 
@@ -609,13 +601,12 @@ class Connection(object):
                 self.process_input()
             except EOFError:
                 break
-            except (select.error, socket.error) as e:
-                if e[0] == errno.EBADF: # Socket was closed by Request.
+            except (select.error, OSError) as e:
+                if e[0] == errno.EBADF:  # Socket was closed by Request.
                     break
                 raise
         self._cleanupSocket()
 
-    @systemcall
     def process_input(self):
         """Attempt to read a single Record from the socket and process it."""
         # Currently, any children Request process notify this Connection
@@ -629,7 +620,7 @@ class Connection(object):
                 # Sigh. ValueError gets thrown sometimes when passing select
                 # a closed socket.
                 raise EOFError
-            if r: 
+            if r:
                 break
         if not self._keepGoing:
             return
@@ -679,7 +670,8 @@ class Connection(object):
         if remove:
             del self._requests[req.requestId]
 
-        if __debug__: _debug(2, 'end_request: flags = %d' % req.flags)
+        if __debug__:
+            _debug(2, 'end_request: flags = %d' % req.flags)
 
         if not (req.flags & FCGI_KEEP_CONN) and not self._requests:
             self._cleanupSocket()
@@ -756,19 +748,18 @@ class Connection(object):
         outrec = Record(FCGI_UNKNOWN_TYPE)
         outrec.contentData = struct.pack(FCGI_UnknownTypeBody, inrec.type)
         outrec.contentLength = FCGI_UnknownTypeBody_LEN
-        self.writeRecord(rec)
+        self.writeRecord(outrec)
 
 
-
-# A FCGI process manager is responsible for calling the connection's run
-# method in some way.
-class ProcessManager(object):
+class ProcessManager:
     def __init__(self):
-        from pycopia import proctools
-        self._procmanager = proctools.get_procmanager()
+        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
     def __call__(self, func):
-        self._procmanager.subprocess(func)
+        pid = os.fork()
+        if pid == 0:
+            sys.excepthook = sys.__excepthook__
+            func()
 
 
 def DefaultErrorHandler(exc_info, stream):
@@ -779,7 +770,7 @@ def DefaultErrorHandler(exc_info, stream):
     stream.flush()
 
 
-class FCGIServer(object):
+class FCGIServer:
     """
     FastCGI server that supports the Web Server Gateway Interface. See
     <http://www.python.org/peps/pep-0333.html>.
@@ -794,9 +785,9 @@ class FCGIServer(object):
     # we throw away already-read data once this certain amount has been read.
     inputStreamShrinkThreshold = 102400 - 8192
 
-    def __init__(self, application, procmanager=None, errorhandler=None, 
-            environ=None, maxwrite=8192, bindAddress=None, umask=None, 
-            idle=NULL, debug=False):
+    def __init__(self, application, errorhandler=None,
+                 environ=None, maxwrite=8192, bindAddress=None, umask=None,
+                 idle=NULL, debug=False):
         """
 
         environ, if present, must be a dictionary-like object. Its
@@ -817,10 +808,11 @@ class FCGIServer(object):
         is the port number.
 
         """
-        self.application = application # the WSGI application
-        self.error_handler = errorhandler or DefaultErrorHandler # error handler
-        self._procmanager = procmanager or ProcessManager()
-        self._idle_cb = idle # called in select loop when idle
+        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+        self.application = application  # the WSGI application
+        self.error_handler = errorhandler or DefaultErrorHandler
+        self._procmanager = ProcessManager()
+        self._idle_cb = idle  # called in select loop when idle
         self.environ = environ or {}
         self.maxwrite = maxwrite
         self._bindAddress = bindAddress
@@ -833,14 +825,14 @@ class FCGIServer(object):
             }
 
     def _setupSocket(self):
-        if self._bindAddress is None: # Run as a normal FastCGI?
+        if self._bindAddress is None:  # Run as a normal FastCGI?
 
             sock = socket.fromfd(FCGI_LISTENSOCK_FILENO, socket.AF_INET,
                                  socket.SOCK_STREAM)
             try:
                 sock.getpeername()
-            except socket.error as e:
-                if e[0] != errno.ENOTCONN:
+            except OSError as e:
+                if e.errno != errno.ENOTCONN:
                     raise
         else:
             # Run as a server
@@ -877,14 +869,14 @@ class FCGIServer(object):
             pass
 
     def _installSignalHandlers(self):
-        self._oldSIGs = [(x,signal.getsignal(x)) for x in
+        self._oldSIGs = [(x, signal.getsignal(x)) for x in
                          (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)]
         signal.signal(signal.SIGHUP, self._hupHandler)
         signal.signal(signal.SIGINT, self._intHandler)
         signal.signal(signal.SIGTERM, self._intHandler)
 
     def _restoreSignalHandlers(self):
-        for signum,handler in self._oldSIGs:
+        for signum, handler in self._oldSIGs:
             signal.signal(signum, handler)
 
     def _hupHandler(self, signum, frame):
@@ -922,19 +914,19 @@ class FCGIServer(object):
             if r:
                 try:
                     clientSock, addr = sock.accept()
-                except socket.error as e:
-                    if e[0] in (errno.EINTR, errno.EAGAIN):
+                except OSError as e:
+                    if e.errno in (errno.EINTR, errno.EAGAIN):
                         continue
                     raise
 
-                if web_server_addrs and \
-                       (len(addr) != 2 or addr[0] not in web_server_addrs):
+                if (web_server_addrs and
+                        (len(addr) != 2 or addr[0] not in web_server_addrs)):
                     clientSock.close()
                     continue
 
                 conn = Connection(clientSock, addr, self)
                 if self._debug:
-                    conn.run() # bypass process manager
+                    conn.run()  # bypass process manager
                 else:
                     self._procmanager(conn.run)
 
@@ -999,9 +991,9 @@ class FCGIServer(object):
                 try:
                     if headers_sent:
                         # Re-raise if too late
-                        raise exc_info[0](exc_info[1]).with_traceback(exc_info[2])
+                        raise exc_info[0](exc_info[1]).with_traceback(exc_info[2])  # noqa
                 finally:
-                    exc_info = None # avoid dangling circular ref
+                    exc_info = None  # avoid dangling circular ref
             else:
                 assert not headers_set, 'Headers already set!'
 
@@ -1010,7 +1002,7 @@ class FCGIServer(object):
             assert int(status[:3]), 'Status must begin with 3-digit code'
             assert status[3] == ' ', 'Status must have a space after code'
             assert type(response_headers) is list, 'Headers must be a list'
-            for name,val in response_headers:
+            for name, val in response_headers:
                 assert type(name) is str, 'Header names must be strings'
                 assert type(val) is str, 'Header values must be strings'
 
@@ -1024,16 +1016,15 @@ class FCGIServer(object):
                     if data:
                         write(data)
                 if not headers_sent:
-                    write('') # in case body was empty
+                    write('')  # in case body was empty
             finally:
                 if hasattr(iterable, 'close'):
                     iterable.close()
-        except socket.error as e:
-            if e[0] != errno.EPIPE:
-                raise # Don't let EPIPE propagate beyond server
+        except OSError as e:
+            if e.errno != errno.EPIPE:
+                raise  # Don't let EPIPE propagate beyond server
 
         return FCGI_REQUEST_COMPLETE, 0
-
 
     def _sanitizeEnv(self, environ):
         """Ensure certain values are present, if required by WSGI."""
@@ -1044,41 +1035,12 @@ class FCGIServer(object):
 
         # If any of these are missing, it probably signifies a broken
         # server...
-        for name,default in [('REQUEST_METHOD', 'GET'),
-                             ('SERVER_NAME', 'localhost'),
-                             ('SERVER_PORT', '80'),
-                             ('SERVER_PROTOCOL', 'HTTP/1.0')]:
+        for name, default in [('REQUEST_METHOD', 'GET'),
+                              ('SERVER_NAME', 'localhost'),
+                              ('SERVER_PORT', '80'),
+                              ('SERVER_PROTOCOL', 'HTTP/1.0')]:
             if name not in environ:
                 environ['wsgi.errors'].write('%s: missing FastCGI param %s '
                                              'required by WSGI!\n' %
                                              (self.__class__.__name__, name))
                 environ[name] = default
-
-if __name__ == '__main__':
-    def test_app(environ, start_response):
-        """Probably not the most efficient example."""
-        import cgi
-        start_response('200 OK', [('Content-Type', 'text/html')])
-        yield '<html><head><title>Hello World!</title></head>\n' \
-              '<body>\n' \
-              '<p>Hello World!</p>\n' \
-              '<table border="1">'
-        names = list(environ.keys())
-        names.sort()
-        for name in names:
-            yield '<tr><td>%s</td><td>%s</td></tr>\n' % (
-                name, cgi.escape(repr(environ[name])))
-
-        form = cgi.FieldStorage(fp=environ['wsgi.input'], environ=environ,
-                                keep_blank_values=1)
-        if form.list:
-            yield '<tr><th colspan="2">Form data</th></tr>'
-
-        for field in form.list:
-            yield '<tr><td>%s</td><td>%s</td></tr>\n' % (
-                field.name, field.value)
-
-        yield '</table>\n' \
-              '</body></html>\n'
-
-    FCGIServer(test_app).run()

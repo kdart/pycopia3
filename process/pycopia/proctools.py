@@ -16,26 +16,23 @@ Classes and functions for controlling, reading, and writing to co-processes.
 
 """
 
-import sys, os
+import sys
+import os
 import signal
 from signal import SIGCHLD, SIGTERM, SIGSTOP, SIGCONT, SIGHUP, SIG_DFL, SIGINT
 from errno import EBADF, EIO
 
 from pycopia import logging
 from pycopia import shparser
+from pycopia.aid import NULL
 from pycopia.OS.procfs import ProcStat
 from pycopia.OS.exitstatus import ExitStatus
 from pycopia.OS.procutils import run_as
-
-from pycopia.aid import NULL
+from pycopia.fileutils import close_on_exec, set_nonblocking
 from pycopia import scheduler
 
 
 class ProcessError(Exception):
-    pass
-
-class NotFoundError(ValueError):
-    """Raised when the ``which`` function cannot find the given command."""
     pass
 
 
@@ -47,15 +44,15 @@ class Process:
         self.cmdline = cmdline
         self.deadchild = 0
         self.closed = False
-        self.callback = callback # called at death of process
-        self._log = logfile # should be file-like object
-        self._restart = True # restart interrupted system calls
+        self.callback = callback  # called at death of process
+        self._log = logfile  # should be file-like object
+        self._restart = True  # restart interrupted system calls
         self._buf = b''
         self._errbuf = b''
         self._writebuf = b''
         self.exitstatus = None
         self._environment = None
-        self._async = bool(async) # use asyncio, or not
+        self._async = bool(async)  # use asyncio, or not
         self._authtoken = None
 
     def __enter__(self):
@@ -72,7 +69,7 @@ class Process:
 
     def __repr__(self):
         return "{0}({1!r}, async={2!r})".format(
-                self.__class__.__name__, self.cmdline, self._async)
+            self.__class__.__name__, self.cmdline, self._async)
 
     def __str__(self):
         if self.deadchild:
@@ -83,7 +80,8 @@ class Process:
                 tty = os.ttyname(self.fileno())
             except:
                 tty = "?"
-            return "%6d %-7s (%s) %s" % (st.pid, tty, st.statestr(), self.cmdline)
+            return "{:6d} {:-7s} ({}) {}".format(st.pid, tty, st.statestr(),
+                                                 self.cmdline)
 
     def __int__(self):
         return self.childpid
@@ -97,7 +95,7 @@ class Process:
         return old
 
     def newlog(self, newlog):
-        newlog.write # asserts newlog has write method
+        newlog.write  # asserts newlog has write method
         self._log = newlog
     setlog = newlog
 
@@ -122,12 +120,12 @@ class Process:
         Spawns a copy of this process. Note that the log file is not inherited.
         """
         return self.__class__(self.cmdline, env=self.environment,
-                callback=self.callback, async=self._async)
+                              callback=self.callback, async=self._async)
 
     def _get_environment(self):
         if self._environment is None:
             ps = ProcStat(self.childpid)
-            self._environment =  ps.environment
+            self._environment = ps.environment
         return self._environment
 
     def _set_environment(self, env):
@@ -137,7 +135,8 @@ class Process:
     def _del_environment(self):
         self._environment = None
 
-    environment = property(_get_environment, _set_environment, _del_environment)
+    environment = property(_get_environment, _set_environment,
+                           _del_environment)
 
     @property
     def basename(self):
@@ -145,7 +144,7 @@ class Process:
 
     def kill(self, sig=SIGINT):
         if not self.deadchild:
-            self.set_callback(None) # explicit kill means no restart
+            self.set_callback(None)  # explicit kill means no restart
             os.kill(self.childpid, sig)
 
     def killwait(self, sig=SIGINT):
@@ -198,7 +197,8 @@ called when child dies. """
 
     def isdead(self):
         return self.deadchild
-    # process object considered true if child alive, false if child dead
+
+    # Process object considered true if child alive, false if child dead.
     def __bool__(self):
         return not self.deadchild
 
@@ -213,8 +213,8 @@ called when child dies. """
                     break
                 self._buf += c
                 bs = len(self._buf)
-        except EOFError: # XXX log an error
-            pass # let it ruturn rest of buffer
+        except EOFError:  # TODO log an error
+            pass  # let it ruturn rest of buffer
         data = self._buf[:amt]
         self._buf = self._buf[amt:]
         return data
@@ -327,7 +327,8 @@ called when child dies. """
 
     def error_handler(self):
         if self._log is not None:
-            self._log.write("Async handler error occured: {}.\n".format(self.basename))
+            self._log.write(
+                "Async handler error occured: {}.\n".format(self.basename))
 
     def exception_handler(self, ex, val, tb):
         if self._log is not None:
@@ -342,7 +343,7 @@ class ProcessPipe(Process):
 
     """
     def __init__(self, cmdline, logfile=None,  env=None, callback=None,
-            merge=1, pwent=None, async=False, devnull=None, _pgid=0):
+                 merge=1, pwent=None, async=False, devnull=None, _pgid=0):
         Process.__init__(self, cmdline, logfile, callback, async)
 
         if env:
@@ -359,7 +360,7 @@ class ProcessPipe(Process):
             self._stderr, c2perr = os.pipe()
             close_on_exec(self._stderr)
         self.childpid = os.fork()
-        self.childpid2 = None # for compatibility with pipeline
+        self.childpid2 = None  # for compatibility with pipeline
         if self.childpid == 0:
             # Child
             os.setpgid(0, _pgid)
@@ -372,7 +373,7 @@ class ProcessPipe(Process):
             if os.dup(c2pwrite) != 1:
                 os._exit(127)
             if merge:
-                if os.dup(c2pwrite) != 2: # merge stderr into stdout from child process
+                if os.dup(c2pwrite) != 2:
                     os._exit(127)
             else:
                 if os.dup(c2perr) != 2:
@@ -405,14 +406,15 @@ class ProcessPipe(Process):
         return self._p_stdout
 
     def filenos(self):
-        """filenos() Returns tuple of all file descriptors used in this object."""
+        """filenos() Returns tuple of all file descriptors used in this object.
+        """
         if self._p_stdout is None:
             raise ValueError("I/O operation on closed process")
         return self._p_stdout, self._p_stdin, self._stderr
 
     def nonblocking(self, flag=1):
         for fd in self._p_stdout, self._p_stdin, self._stderr:
-           set_nonblocking(fd, flag)
+            set_nonblocking(fd, flag)
 
     def interrupt(self):
         self.kill(SIGINT)
@@ -437,7 +439,7 @@ class ProcessPipe(Process):
             self._stderr = None
         self._p_stdin = None
         self._p_stdout = None
-        self.callback = None # break a possible reference loop
+        self.callback = None  # break a possible reference loop
 
     def _write(self, data):
         while 1:
@@ -471,17 +473,15 @@ class ProcessPipe(Process):
         return self._read_fd(self._stderr, amt)
 
 
-
 class ProcessPty(Process):
     """ProcessPty(<commandline>, [<logfilename>], [environ])
     Forks and execs a process as given by the command line argument. The
     process's stdio is connected to this instance via a pty, and can be read
     and written to by the instances read() and write() methods. That pty
     becomes the processes controlling terminal.
-
     """
     def __init__(self, cmdline, logfile=None, env=None, callback=None,
-            merge=1, pwent=None, async=False, devnull=False, _pgid=0):
+                 merge=1, pwent=None, async=False, devnull=False, _pgid=0):
         Process.__init__(self, cmdline, logfile, callback, async)
         if env:
             self.environment = env
@@ -492,7 +492,7 @@ class ProcessPty(Process):
             logging.error("ProcessPty error: {}".format(err))
             raise
         else:
-            if pid == 0: # child
+            if pid == 0:  # child
                 sys.excepthook = sys.__excepthook__
                 if devnull:
                     # Redirect standard file descriptors.
@@ -522,12 +522,12 @@ class ProcessPty(Process):
                     else:
                         os.execvp(cmd[0], cmd)
                 finally:
-                    os._exit(127) # should not be reached
+                    os._exit(127)  # should not be reached
 
-            else: # parent
+            else:  # parent
                 close_on_exec(self._fd)
                 self.childpid = pid
-                self.childpid2 = None # for compatibility with pipeline
+                self.childpid2 = None  # for compatibility with pipeline
                 self._intr = None
                 self._eof = None
 
@@ -540,7 +540,8 @@ class ProcessPty(Process):
         return self._fd
 
     def filenos(self):
-        """filenos() Returns tuple of all file descriptors used in this object."""
+        """filenos() Returns tuple of all file descriptors used in this object.
+        """
         if self._fd is None:
             raise ValueError("I/O operation on closed process")
         return (self._fd,)
@@ -571,7 +572,7 @@ class ProcessPty(Process):
         except (TypeError, OSError):
             pass
         self._fd = None
-        self.callback = None # break a possible reference loop
+        self.callback = None  # break a possible reference loop
 
     def _write(self, data):
         while 1:
@@ -600,22 +601,23 @@ class ProcessPty(Process):
         return next
 
 
-
 class CoProcessPty(ProcessPty):
     def __init__(self, method, logfile=None, env=None,
-                    callback=None, async=False, pwent=None, _pgid=0):
-        Process.__init__(self, "python: %s" % (method.__name__,), logfile, callback, async)
+                 callback=None, async=False, pwent=None, _pgid=0):
+        Process.__init__(self, "python: %s" % (method.__name__,),
+                         logfile, callback, async)
         pid, self._fd = os.forkpty()
         self.childpid = pid
-        self.childpid2 = None # for compatibility with pipeline
+        self.childpid2 = None  # for compatibility with pipeline
         if pid == 0 and pwent:
             run_as(pwent)
 
 
 class CoProcessPipe(ProcessPipe):
     def __init__(self, method, logfile=None, env=None,
-                    callback=None, merge=False, async=False, pwent=None, _pgid=0):
-        Process.__init__(self, "python <=> %s" % (method.__name__,), logfile, callback, async)
+                 callback=None, merge=False, async=False, pwent=None, _pgid=0):
+        Process.__init__(self, "python <=> %s" % (method.__name__,), logfile,
+                         callback, async)
 
         p2cread, self._p_stdin = os.pipe()
         self._p_stdout, c2pwrite = os.pipe()
@@ -656,23 +658,24 @@ class SubProcess(Process):
         Process.__init__(self, sys.argv[0])
         pid = os.fork()
         if pid == 0:
-            sys.excepthook = sys.__excepthook__ # remove any debugger hook
+            sys.excepthook = sys.__excepthook__  # remove any debugger hook
             if pwent:
                 run_as(pwent)
         self.childpid = pid
-        self.childpid2 = None # for compatibility with pipeline
+        self.childpid2 = None  # for compatibility with pipeline
+
 
 # TODO need a more general pipeline
 class ProcessPipeline(ProcessPipe):
     """Connects two commands via a pipe, they appear as one process object."""
     def __init__(self, cmdline, logfile=None,  env=None, callback=None,
-                    merge=None, pwent=None, async=False, devnull=None, _pgid=0):
+                 merge=None, pwent=None, async=False, devnull=None, _pgid=0):
         assert cmdline.count("|") == 1
         [cmdline1, cmdline2] = cmdline.split("|")
         if env:
             self.environment = env
         Process.__init__(self, cmdline2, logfile, callback, async)
-        self._stderr= None
+        self._stderr = None
 
         cmd1 = split_command_line(cmdline1)
         cmd2 = split_command_line(cmdline2)
@@ -694,7 +697,6 @@ class ProcessPipeline(ProcessPipe):
 
         # cmd2
         cmd2pid = os.fork()
-        #os.setpgid(pid, pgrp)
         if cmd2pid == 0:
             # Child 2
             os.dup2(p_read, 0)
@@ -702,7 +704,7 @@ class ProcessPipeline(ProcessPipe):
             self._exec(cmd2, env, pwent)
             os._exit(127)
 
-        self.childpid2 = cmd2pid # XXX
+        self.childpid2 = cmd2pid
         # close our copies
         os.close(_p_stdout)
         os.close(_p_stdin)
@@ -739,18 +741,19 @@ to get the instance.  """
             s.append(str(p))
         return "\n".join(s)
 
-
     def spawnprocess(self, pklass, cmd, logfile=None, env=None, callback=None,
-                persistent=False, merge=True, pwent=None, async=False, devnull=False):
-        """spawnclass(classobj, cmd, logfile=None, env=None, callback=None, persistent=0)
-Start a child process using a user supplied subclass of ProcessPty or
-ProcessPipe.  """
+                     persistent=False, merge=True, pwent=None, async=False,
+                     devnull=False):
+        """Start a child process using a user supplied subclass of ProcessPty
+        or ProcessPipe.
+        """
 
         if persistent and (callback is None):
             callback = self.respawn_callback
-        signal.signal(SIGCHLD, SIG_DFL) # critical area
+        signal.signal(SIGCHLD, SIG_DFL)  # critical area
         proc = pklass(cmd, logfile=logfile, env=env, callback=callback,
-                    merge=merge, pwent=pwent, async=async, devnull=devnull, _pgid=self._pgid)
+                      merge=merge, pwent=pwent, async=async, devnull=devnull,
+                      _pgid=self._pgid)
         self._procs[proc.childpid] = proc
         # TODO need a more general pipeline
         if proc.childpid2:
@@ -760,30 +763,34 @@ ProcessPipe.  """
         return proc
 
     def spawnpipe(self, cmd, logfile=None, env=None, callback=None,
-                    persistent=False, merge=True, pwent=None, async=False, devnull=False):
-        """spawn(cmd, logfile=None, env=None, callback=None, persisten=None)
-Start a child process, connected by pipes."""
+                  persistent=False, merge=True, pwent=None, async=False,
+                  devnull=False):
+        """Start a child process, connected by pipes."""
         if cmd.find("|") > 0:
             klass = ProcessPipeline
         else:
             klass = ProcessPipe
         return self.spawnprocess(klass, cmd, logfile, env, callback,
-                    persistent, merge, pwent, async, devnull)
+                                 persistent, merge, pwent, async, devnull)
 
     # default spawn method
     spawn = spawnpipe
 
     def spawnpty(self, cmd, logfile=None, env=None, callback=None,
-                    persistent=False, merge=True, pwent=None, async=False, devnull=False):
-        """spawnpty(cmd, logfile=None, env=None, callback=None, persisten=None)
-Start a child process using a pty. The <persistent> variable is the number of
-times the process will be respawned if the previous invocation dies.  """
+                 persistent=False, merge=True, pwent=None, async=False,
+                 devnull=False):
+        """Start a child process using a pty. The <persistent> variable is the
+        number of times the process will be respawned if the previous
+        invocation dies.
+        """
         return self.spawnprocess(ProcessPty, cmd, logfile, env, callback,
-                    persistent, merge, pwent, async, devnull)
+                                 persistent, merge, pwent, async, devnull)
 
-    def coprocess(self, method, args=(), logfile=None, env=None, callback=None, async=False):
-        signal.signal(SIGCHLD, SIG_DFL) # critical area
-        proc = CoProcessPipe(method, logfile=logfile, env=env, callback=callback, async=async)
+    def coprocess(self, method, args=(), logfile=None, env=None, callback=None,
+                  async=False):
+        signal.signal(SIGCHLD, SIG_DFL)  # critical area
+        proc = CoProcessPipe(method, logfile=logfile, env=env,
+                             callback=callback, async=async)
         if proc.childpid == 0:
             os.setpgid(0, self._pgid)
             sys.excepthook = sys.__excepthook__
@@ -820,9 +827,9 @@ times the process will be respawned if the previous invocation dies.  """
     def submethod(self, _method, args=None, kwargs=None, pwent=None):
         args = args or ()
         kwargs = kwargs or {}
-        signal.signal(SIGCHLD, SIG_DFL) # critical area
+        signal.signal(SIGCHLD, SIG_DFL)  # critical area
         proc = SubProcess(pwent=pwent)
-        if proc.childpid == 0: # in child
+        if proc.childpid == 0:  # in child
             os.setpgid(0, self._pgid)
             sys.excepthook = sys.__excepthook__
             self._procs.clear()
@@ -869,24 +876,30 @@ times the process will be respawned if the previous invocation dies.  """
         return list(self._procs.values())
 
     def getbyname(self, name):
-        """getbyname(procname) Returns a list of process objects that match the given name."""
+        """getbyname(procname) Returns a list of process objects that match the
+        given name.
+        """
         name = os.path.basename(name)
         return [p for p in list(self._procs.values()) if p.basename == name]
 
     def getbypid(self, pid):
-        """getbypid(pid) Returns the process object that matches the given PID."""
+        """getbypid(pid) Returns the process object that matches the given PID.
+        """
         try:
             return self._procs[pid]
         except KeyError:
             return None
 
     def getstats(self):
-        """getstats() Returns a list of process status objects (ProcStat) for each managed process."""
+        """getstats() Returns a list of process status objects (ProcStat) for
+        each managed process.
+        """
         return [ProcStat(o) for o in list(self._procs.keys())]
 
     def killall(self, name=None, sig=SIGTERM):
-        """killall([name, [SIG]]) Kills all managed processes with the name
-'name'. If 'name' not given kill ALL processes. Default signal is SIGTERM."""
+        """Kills all managed processes with the name 'name'. If 'name' not
+        given kill ALL processes. Default signal is SIGTERM.
+        """
         if name is None:
             procs = list(self._procs.values())
         else:
@@ -899,7 +912,7 @@ times the process will be respawned if the previous invocation dies.  """
         proc.kill(sig)
 
     def stopall(self):
-        """stopall() sends STOP to all managed processes. To restart get the
+        """Sends STOP to all managed processes. To restart get the
         process objects and invoke the cont() method.
         """
         for p in list(self._procs.values()):
@@ -910,14 +923,14 @@ times the process will be respawned if the previous invocation dies.  """
         well. If no process object is supplied then clone the first managed
         process found in this ProcManager.
         """
-        if proc is None: # default to cloning first process found.
+        if proc is None:  # default to cloning first process found.
             procs = list(self._procs.values())
             if procs:
                 proc = procs[0]
                 del procs
             else:
                 return
-        signal.signal(SIGCHLD, SIG_DFL) # critical area
+        signal.signal(SIGCHLD, SIG_DFL)  # critical area
         newproc = proc.clone()
         self._procs[newproc.childpid] = newproc
         signal.signal(SIGCHLD, self._child_handler)
@@ -927,17 +940,17 @@ times the process will be respawned if the previous invocation dies.  """
     def respawn_callback(self, deadproc):
         """Callback that performs a respawn, for persistent services."""
         if deadproc.exitstatus.status == 127:
-            deadproc.log(
-                "*** process '%s' didn't start (NOT restarting).\n" % (deadproc.cmdline,))
+            deadproc.log("*** process {!r} didn't start (NOT restarting).\n".format(  # noqa
+                deadproc.cmdline))
             raise ProcessError("Process never started. Check command line.")
         elif not deadproc.exitstatus:
-            deadproc.log(
-                    "*** process '%s' died: %s (restarting in 1 sec.).\n" % (
-                            deadproc.cmdline, deadproc.exitstatus))
+            deadproc.log("*** process {!r} died: %s (restarting in 1 sec.).\n".format(  # noqa
+                         deadproc.cmdline, deadproc.exitstatus))
             scheduler.add(self._respawn, 1.0, args=(deadproc,))
         else:
             deadproc.log(
-                    "*** process '%s' normal exit (NOT restarting).\n" % (deadproc.cmdline,))
+                "*** process {!r} normal exit (NOT restarting).\n".format(
+                    deadproc.cmdline))
         return None
 
     def _respawn(self, deadproc):
@@ -962,7 +975,7 @@ times the process will be respawned if the previous invocation dies.  """
             return ExitStatus(sts, cmdline.split()[0])
         return self.waitproc(proc)
 
-    def waitproc(self, proc, option=0): # waits for a Process object.
+    def waitproc(self, proc, option=0):  # waits for a Process object.
         """waitproc(process, [option])
         Waits for a process object to finish. Depends on signal handler.
         """
@@ -979,7 +992,8 @@ times the process will be respawned if the previous invocation dies.  """
     def _proc_status(self, proc, sts):
         es = ExitStatus(sts, proc.cmdline.split()[0])
         proc.set_exitstatus(es)
-        if es.state != ExitStatus.STOPPED: # XXX untested with stopped processes
+        # XXX untested with stopped processes
+        if es.state != ExitStatus.STOPPED:
             proc.dead()
             del self._procs[proc.childpid]
         return es
@@ -988,7 +1002,7 @@ times the process will be respawned if the previous invocation dies.  """
         while self._procs:
             poller.poll(timeout)
             callback(self)
-            if scheduler.get_scheduler(): # wait for any restarts
+            if scheduler.get_scheduler():  # wait for any restarts
                 scheduler.sleep(1.5)
 
 
@@ -1011,27 +1025,30 @@ def remove_procmanager():
 
 #  Process manager factory functions
 def spawnpipe(cmd, logfile=None, env=None, callback=None,
-                persistent=False, merge=True, pwent=None, async=False):
-    """spawn(cmd, logfile=None, env=None)
-Start a child process, connected by pipes."""
+              persistent=False, merge=True, pwent=None, async=False):
+    """Start a child process, connected by pipes.
+    """
     pm = get_procmanager()
-    proc = pm.spawnpipe(cmd, logfile, env, callback, persistent, merge, pwent, async)
+    proc = pm.spawnpipe(cmd, logfile, env, callback, persistent, merge, pwent,
+                        async)
     return proc
 
 
 def spawnpty(cmd, logfile=None, env=None, callback=None,
-                persistent=False, merge=True, pwent=None, async=False, devnull=False):
-    """spawnpty(cmd, logfile=None, env=None)
-Start a child process using a pty."""
+             persistent=False, merge=True, pwent=None, async=False,
+             devnull=False):
+    """Start a child process using a pty.
+    """
     pm = get_procmanager()
-    proc = pm.spawnpty(cmd, logfile, env, callback, persistent, merge, pwent, async, devnull)
+    proc = pm.spawnpty(cmd, logfile, env, callback, persistent, merge, pwent,
+                       async, devnull)
     return proc
 
 
 def coprocess(func, args=(), logfile=None, env=None, callback=None, async=0):
-    """coprocess(func, args, [logfile, callback])
-Works like fork(), but connects the childs stdio to a pty. Returns a file-like
-object connected to the master end of the child pty.  """
+    """Works like fork(), but connects the childs stdio to a pty. Returns a
+    file-like object connected to the master end of the child pty.
+    """
     pm = get_procmanager()
     cp = pm.coprocess(func, args, logfile, env, callback, async)
     return cp
@@ -1041,13 +1058,16 @@ def waitproc(proc, option=0):
     pm = get_procmanager()
     return pm.waitproc(proc, option)
 
+
 def subprocess(method, *args, **kwargs):
     pm = get_procmanager()
     return pm.subprocess(method, *args, **kwargs)
 
+
 def submethod(_method, args=None, kwargs=None, pwent=None):
     pm = get_procmanager()
     return pm.submethod(_method, args, kwargs, pwent)
+
 
 def getstatusoutput(cmd, logfile=None, env=None, callback=None):
     p = spawnpipe(cmd, logfile, env, callback)
@@ -1055,8 +1075,10 @@ def getstatusoutput(cmd, logfile=None, env=None, callback=None):
     p.wait()
     return p.exitstatus, text
 
+
 def call(*args, **kwargs):
     return spawnpipe(*args, **kwargs).wait()
+
 
 def setpgid(pid_or_proc, pgrp):
     pid = int(pid_or_proc)
@@ -1064,9 +1086,3 @@ def setpgid(pid_or_proc, pgrp):
 
 
 split_command_line = shparser.get_command_splitter()
-
-
-if __name__ == "__main__":
-    pass
-    #print (system("runtest testcases.unittests.process.proctools"))
-

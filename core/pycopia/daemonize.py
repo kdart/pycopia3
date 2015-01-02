@@ -18,9 +18,11 @@
 cause the current process to detach itself from a controlling terminal and run
 in the background (that is, become a Unix daemon).  """
 
-import sys, os
+import sys
+import os
 
 DEVNULL = "/dev/null"
+
 
 def daemonize(logfile=None, pidfile=None):
     """This forks the current process into a daemon. Takes an optional
@@ -31,9 +33,10 @@ def daemonize(logfile=None, pidfile=None):
     # Do first fork.
     try:
         if os.fork() > 0:
-            os._exit(0) # Exit first parent.
+            os._exit(0)  # Exit first parent.
     except OSError as e:
-        sys.stderr.write ("fork #1 failed: (%d) %s\n" % (e.errno, e.strerror))
+        sys.stderr.write(
+                "fork #1 failed: ({}) {}\n".format(e.errno, e.strerror))
 
     # Decouple from parent environment.
     os.chdir("/")
@@ -44,9 +47,8 @@ def daemonize(logfile=None, pidfile=None):
     pid = os.fork()
     if pid > 0:
         if pidfile:
-            fo = open(pidfile, "w")
-            fo.write("%s\n" % (pid,))
-            fo.close()
+            with open(pidfile, "w") as fo:
+                fo.write("%s\n".format(pid))
         os._exit(0)
 
     # Redirect standard file descriptors.
@@ -62,7 +64,7 @@ def daemonize(logfile=None, pidfile=None):
     # log file is stdout and stderr, otherwise /dev/null
     if logfile is None:
         sys.stdout = open(DEVNULL, 'w')
-        sys.stderr = open(DEVNULL, 'wb', 0)
+        sys.stderr = open(DEVNULL, 'w', 0)
     else:
         so = se = sys.stdout = sys.stderr = logfile
         os.dup2(so.fileno(), 1)
@@ -74,7 +76,6 @@ if __name__ == "__main__":
     import time
     from pycopia import logfile
     lf = logfile.ManagedStdio("/var/tmp/test_daemonize", 1000, 5)
-    #lf = None
     try:
         daemonize(lf)
     except SystemExit:
@@ -82,8 +83,8 @@ if __name__ == "__main__":
     except:
         import traceback
         ex, val, tb = sys.exc_info()
-        print (ex, val)
-        print ("----")
+        print(ex, val)
+        print("----")
         traceback.print_tb(tb)
 
     else:
@@ -92,9 +93,8 @@ if __name__ == "__main__":
         sys.stdout.write(repr(sys.stdout).encode("ascii"))
         sys.stdout.write(b'\n')
         while 1:
-            sys.stdout.write(('%d: %s\n' % (c, time.asctime())).encode("ascii") )
+            sys.stdout.write(
+                ('%d: %s\n' % (c, time.asctime())).encode("ascii"))
             sys.stdout.flush()
             c += 1
             time.sleep(1)
-
-

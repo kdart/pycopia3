@@ -1,7 +1,5 @@
-#!/usr/bin/python3.7
+#!/usr/bin/python3.4
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
-#
-#    Copyright (C) 1999-  Keith Dart <keith@kdart.com>
 #
 #    This library is free software; you can redistribute it and/or
 #    modify it under the terms of the GNU Lesser General Public
@@ -16,10 +14,9 @@
 """
 Interface to crontab. You can read, add, change, and submit crontab files
 to the cron system.
-
 """
 
-import sys, os
+import os
 import re
 
 from pycopia import proctools
@@ -34,7 +31,6 @@ DOW = {
     6: "Sat",
     7: "Sun"
 }
-#DOW_REV = dict([(t[1], t[0]) for t in DOW.iteritems()])
 
 MONTHS = {
     1: "Jan",
@@ -50,7 +46,7 @@ MONTHS = {
     11: "Nov",
     12: "Dec",
 }
-#MONTHS_REV = dict([(t[1], t[0]) for t in MONTHS.iteritems()])
+
 
 class Comment(object):
     def __init__(self, text):
@@ -118,7 +114,7 @@ class BlankLine(object):
 
 class CrontabLine(object):
     def __init__(self, cmd, minute=None, hour=None, day_of_month=None,
-                  month=None, day_of_week=None):
+                 month=None, day_of_week=None):
         self.minute = Minutes(minute)
         self.hour = Hours(hour)
         self.day_of_month = DayOfMonth(day_of_month)
@@ -136,13 +132,14 @@ class CrontabLine(object):
             self.command)
 
     def match(self, command=None, minute=None, hour=None, day_of_month=None,
-                  month=None, day_of_week=None):
+              month=None, day_of_week=None):
         if command:
             if re.search(command, self.command) is None:
                 return False
         for attr, check in ((self.minute, minute), (self.hour, hour),
                             (self.day_of_month, day_of_month),
-                            (self.month, month), (self.day_of_week, day_of_week)):
+                            (self.month, month),
+                            (self.day_of_week, day_of_week)):
             if check is not None:
                 checker = attr.new(check)
                 if checker != attr:
@@ -159,7 +156,8 @@ class Selection(object):
 class CrontabFile(object):
     """Represents a user crontab file.
 
-    Provides a sequence interface. Add and remove entries using the methods found here.
+    Provides a sequence interface. Add and remove entries using the methods
+    found here.
     """
     BLANK_RE = re.compile(r"^\s*$")
     VARIABLE_RE = re.compile(r"^(\w+)\s*=\s*['\"]*([^'\"]+)['\"]*$")
@@ -211,7 +209,7 @@ class CrontabFile(object):
             # crontabline
             try:
                 [minute, hour, dom, month, dow, cmd] = line.split(None, 5)
-            except ValueError: # some strange line, ignore it.
+            except ValueError:  # some strange line, ignore it.
                 pass
             else:
                 lines.append(CrontabLine(cmd, minute, hour, dom, month, dow))
@@ -238,7 +236,7 @@ class CrontabFile(object):
             self._lines.insert(lineno, BlankLine())
 
     def add_crontab(self, cmd, minute=None, hour=None, day_of_month=None,
-                   month=None, dow=None, lineno=None):
+                    month=None, dow=None, lineno=None):
         ctl = CrontabLine(cmd, minute, hour, day_of_month, month, dow)
         if lineno is None:
             self._lines.append(ctl)
@@ -272,13 +270,13 @@ class CrontabFile(object):
         for entry in self._lines[start:end]:
             if entry.match(**kwargs):
                 return entry
-        return None # no match
+        return None  # No match
 
     def _find_i(self, start, end, cttype, **kwargs):
         for i, entry in enumerate(self._lines[start:end]):
             if type(entry) is cttype and entry.match(**kwargs):
                 return i+start
-        return -1 # no match
+        return -1  # No match
 
     def find(self, pattern, start=0, end=-1):
         """Return a crontab line matching the given pattern.
@@ -290,15 +288,15 @@ class CrontabFile(object):
             if type(obj) is Variable:
                 if obj.match(valuepattern, namepattern):
                     return i, obj
-        return -1, None # not found
+        return -1, None  # Not found
 
-    def find_crontab(self, command=None, minute=None, hour=None, day_of_month=None,
-                  month=None, day_of_week=None, start=0):
+    def find_crontab(self, command=None, minute=None, hour=None,
+                     day_of_month=None, month=None, day_of_week=None, start=0):
         for i, obj in enumerate(self._lines[start:]):
             if type(obj) is CrontabLine:
                 if obj.match(command=command, minute=minute, hour=hour,
-                        day_of_month=day_of_month, month=month,
-                        day_of_week=day_of_week):
+                             day_of_month=day_of_month, month=month,
+                             day_of_week=day_of_week):
                     return i, obj
         return -1, None
 
@@ -451,9 +449,9 @@ class IntSet(object):
 
     """
     MIN = 0
-    MAX = 2147483647 # arbitrary maximum
+    MAX = 2147483647  # arbitrary maximum
 
-    def __init__(self,data=None, sep = ',', rng='-'):
+    def __init__(self, data=None, sep=',', rng='-'):
         self.pairs = []
         self.sep = sep
         self.rng = rng
@@ -475,8 +473,10 @@ class IntSet(object):
         return self.pairs != other.pairs
 
     def __repr__(self):
-        return '%s(%r, %r, %r)' % (self.__class__.__name__,
-                                           self.__str__(), self.sep, self.rng)
+        return '{}({!r}, {!r}, {!r})'.format(self.__class__.__name__,
+                                             self.__str__(), self.sep,
+                                             self.rng)
+
     def __str__(self):
         if (len(self.pairs) == 1
                 and self.pairs[0][0] == self.MIN
@@ -540,7 +540,7 @@ class IntSet(object):
     def append(self, x):
         for i in range(len(self.pairs)):
             lo, hi = self.pairs[i]
-            if x < lo: # Need to insert before
+            if x < lo:  # Need to insert before
                 if x+1 == lo:
                     self.pairs[i] = (x, hi)
                 else:
@@ -548,11 +548,10 @@ class IntSet(object):
                 if i > 0 and x-1 == self.pairs[i-1][1]:
                     # Merge with previous
                     self.pairs[i-1:i+1] = [
-                            (self.pairs[i-1][0],
-                             self.pairs[i][1])
-                          ]
+                        (self.pairs[i-1][0],
+                         self.pairs[i][1])]
                 return
-            if x <= hi: # Already in set
+            if x <= hi:  # Already in set
                 return
         i = len(self.pairs) - 1
         if i >= 0:
@@ -589,27 +588,25 @@ class IntSet(object):
 
 
 class Minutes(IntSet):
-    MIN=0
-    MAX=59
+    MIN = 0
+    MAX = 59
 
 
 class Hours(IntSet):
-    MIN=0
-    MAX=23
+    MIN = 0
+    MAX = 23
 
 
 class DayOfMonth(IntSet):
-    MIN=1
-    MAX=31
+    MIN = 1
+    MAX = 31
 
 
 class Month(IntSet):
-    MIN=1
-    MAX=12
+    MIN = 1
+    MAX = 12
 
 
 class DayOfWeek(IntSet):
-    MIN=0
-    MAX=7
-
-
+    MIN = 0
+    MAX = 7

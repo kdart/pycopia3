@@ -22,7 +22,6 @@ from pycopia import netcat
 from pycopia import rsynclib
 from pycopia import sshlib
 from pycopia import sudo
-#from pycopia import xselection
 
 def _sub_function():
     from pycopia import scheduler

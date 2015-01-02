@@ -15,7 +15,7 @@
 
 
 """
-
+Utility functions for file objects and file descriptors.
 """
 
 import os
@@ -47,7 +47,8 @@ Combines a write stream and a read stream into one read/write object."""
         self._inf = None
         self.closed = 1
 
-    def fileno(self): # ??? punt, since reads are most common, return reader fd
+    def fileno(self):
+        # ??? punt, since reads are most common, return reader fd
         return self._inf.fileno()
 
     def filenos(self):
@@ -57,12 +58,11 @@ Combines a write stream and a read stream into one read/write object."""
         return self._inf.isatty() and self._outf.isatty()
 
 
-
 def mode2flags(mode):
     """mode2flags(modestring)
     Converts a file mode in string form (e.g. "w+") to an integer flag value
     suitable for os.open().  """
-    flags = os.O_LARGEFILE # XXX only when Python compiled with large file support
+    flags = os.O_LARGEFILE
     if mode == "a":
         flags = flags | os.O_APPEND | os.O_WRONLY
     elif mode == "a+":
@@ -72,7 +72,7 @@ def mode2flags(mode):
     elif mode == "w+":
         flags = flags | os.O_RDWR | os.O_CREAT
     elif mode == "r":
-        pass # O_RDONLY is zero already
+        pass  # O_RDONLY is zero already
     elif mode == "r+":
         flags = flags | os.O_RDWR
     return flags
@@ -81,13 +81,15 @@ def mode2flags(mode):
 # cache of O_ flags
 _OLIST = [n for n in dir(os) if n.startswith("O_")]
 
+
 def flag_string(fd):
     """flag_string(fd)
-    where fd is an integer file descriptor of an open file. Returns the files open
-    flags as a vertical bar (|) delimited string.
+    where fd is an integer file descriptor of an open file. Returns the files
+    open flags as a vertical bar (|) delimited string.
     """
     flags = fcntl.fcntl(fd, fcntl.F_GETFL)
-    strlist = [_f for _f in [(flags & getattr(os, n)) and n for n in _OLIST] if _f]
+    strlist = [_f for _f in
+               [(flags & getattr(os, n)) and n for n in _OLIST] if _f]
     # hack to accomodate the fact that O_RDONLY is not really a flag...
     if not (flags & os.ACCMODE):
         strlist.insert(0, "O_RDONLY")
@@ -103,6 +105,7 @@ _MODEMAP = {
     os.O_APPEND | os.O_WRONLY: "a",
     os.O_APPEND | os.O_RDWR | os.O_CREAT: "a+",
 }
+
 
 def mode_string(fd):
     """Get a suitalbe mode string for an fd."""
@@ -123,8 +126,7 @@ def close_on_exec(fd):
 def set_nonblocking(fd, flag=1):
     flags = fcntl.fcntl(fd, fcntl.F_GETFL)
     if flag:
-        flags |= os.O_NONBLOCK # set non-blocking
+        flags |= os.O_NONBLOCK  # set non-blocking
     else:
-        flags &= ~os.O_NONBLOCK # set blocking
+        flags &= ~os.O_NONBLOCK  # set blocking
     fcntl.fcntl(fd, fcntl.F_SETFL, flags)
-

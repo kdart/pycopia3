@@ -16,11 +16,12 @@
 """
 Managing logfile rotation. A ManagedLog object is a file-like object that
 rotates itself when a maximum size is reached.
-
 """
 
-import sys, os
+import sys
+import os
 import io
+
 
 class SizeError(IOError):
     pass
@@ -40,7 +41,7 @@ class LogFile(io.FileIO):
         super(LogFile, self).write(data)
         self.flush()
         if self.written > self.maxsize:
-            raise SizeError
+            raise SizeError()
 
     def rotate(self):
         return rotate(self)
@@ -51,12 +52,12 @@ with the string '\\n#*=' so you can easily filter them. """
         self.write("\n#*===== %s =====\n" % (text,))
 
 
-class ManagedLog(object):
+class ManagedLog:
     """ManagedLog(name, [maxsize=360000], [maxsave=9])
     A ManagedLog instance is a persistent log object. Write data with the
     write() method. The log size and rotation is handled automatically.
-
     """
+
     def __init__(self, name, maxsize=360000, maxsave=9):
         if os.path.isfile(name):
             shiftlogs(name, maxsave)
@@ -64,7 +65,9 @@ class ManagedLog(object):
         self.maxsave = maxsave
 
     def __repr__(self):
-        return "%s(%r, %r, %r)" % (self.__class__.__name__, self._lf.name, self._lf.maxsize, self.maxsave)
+        return "{}({!r}, {!r}, {!r})".format(self.__class__.__name__,
+                                             self._lf.name, self._lf.maxsize,
+                                             self.maxsave)
 
     def write(self, data):
         try:
@@ -90,8 +93,8 @@ class ManagedLog(object):
         return getattr(self._lf, name)
 
 
-# useful for logged stdout for daemon processes
 class ManagedStdio(ManagedLog):
+
     def write(self, data):
         try:
             self._lf.write(data)
@@ -136,6 +139,7 @@ def shiftlogs(basename, maxsave):
 def open(name, maxsize=360000, maxsave=9):
     return ManagedLog(name, maxsize, maxsave)
 
+
 def writelog(logobj, data):
     try:
         logobj.write(data)
@@ -143,7 +147,3 @@ def writelog(logobj, data):
         return rotate(logobj)
     else:
         return logobj
-
-
-
-

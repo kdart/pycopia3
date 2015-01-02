@@ -18,9 +18,8 @@ with files and processes. Use this in concert with the proctools module for
 interacting with processes.
 """
 
-import sys, os
+import os
 import re
-import signal
 from errno import EINTR
 
 from pycopia import scheduler
@@ -28,10 +27,9 @@ from pycopia.stringmatch import compile_exact
 import collections
 
 # matching types
-EXACT = 1 # string match (fastest)
-GLOB = 2 # POSIX shell style match, but really uses regular expressions
-REGEX = 3 # slow but powerful RE match
-
+EXACT = 1  # string match (fastest)
+GLOB = 2   # POSIX shell style match, but really uses regular expressions
+REGEX = 3  # slow but powerful RE match
 
 
 class ExpectError(Exception):
@@ -54,12 +52,13 @@ The wrapped object need only implement the following methods:
         fileno()
 
     Optional:
-        restart(bool)  - Turn on or off system call restart.
-        dup()          - Duplicate the object and file descriptor (for cloning)
-        interrupt()    - Interrupt the wrapped object (usually a process object)
+        restart(bool) - Turn on or off system call restart.
+        dup()         - Duplicate the object and file descriptor (for cloning)
+        interrupt()   - Interrupt the wrapped object (usually a process object)
 
 """
-    def __init__(self, fo=None, prompt="$", timeout=90.0, logfile=None, engine=None):
+    def __init__(self, fo=None, prompt="$", timeout=90.0, logfile=None,
+                 engine=None):
         if hasattr(fo, "fileno"):
             self._fo = fo
             try:
@@ -78,8 +77,9 @@ The wrapped object need only implement the following methods:
         self.eof = 0
         self.sched = scheduler.get_scheduler()
         self._engine = engine
-        self.expectindex = -1 # if a match on a list occurs, the index in the list
-                              # search on the last 'expect' method call is saved here.
+        # If a match on a list occurs, the index in the list
+        # search on the last 'expect' method call is saved here.
+        self.expectindex = -1
 
     def fileobject(self):
         return self._fo
@@ -99,8 +99,8 @@ The wrapped object need only implement the following methods:
             fo = self._fo
             self._fo = None
             try:
-                # for Process objects, back to syscall restart mode if we are no
-                # longer wrapping it.
+                # for Process objects, back to syscall restart mode if we are
+                # no longer wrapping it.
                 fo.restart(1)
             except AttributeError:
                 pass
@@ -117,7 +117,8 @@ The wrapped object need only implement the following methods:
             newfo = os.fdopen(fd, "w")
         if klass is None:
             klass = self.__class__
-        return klass(newfo, prompt=self._prompt, timeout=self.default_timeout, logfile=self._log)
+        return klass(newfo, prompt=self._prompt, timeout=self.default_timeout,
+                     logfile=self._log)
 
     def interrupt(self):
         """interrupt() sends the INTR character to the stream. Actually,
@@ -148,10 +149,13 @@ The wrapped object need only implement the following methods:
     def wait_for_prompt(self, timeout=None):
         return self.read_until(self._prompt, timeout=timeout)
 
-    def set_prompt(self, prompt):
-        self._prompt = prompt.encode()
+    @property
+    def prompt(self):
+        return self._prompt
 
-    prompt = property(lambda s: s._prompt, set_prompt)
+    @prompt.setter
+    def prompt(self, prompt):
+        self._prompt = prompt.encode()
 
     def _get_re(self, patt, mtype=EXACT, callback=None):
         try:
@@ -161,7 +165,8 @@ The wrapped object need only implement the following methods:
                 self._patt_cache[patt] = p = (compile_exact(patt), callback)
                 return p
             elif mtype == GLOB:
-                self._patt_cache[patt] = p = (re.compile(glob_translate(patt)), callback)
+                self._patt_cache[patt] = p = (re.compile(glob_translate(patt)),
+                                              callback)
                 return p
             elif mtype == REGEX:
                 self._patt_cache[patt] = p = (re.compile(patt), callback)
@@ -176,7 +181,8 @@ The wrapped object need only implement the following methods:
         elif ptype is tuple:
             solist.append(self._get_re(*patt))
         elif ptype is list:
-            list([self._get_search_list(p, mtype, callback, solist) for p in patt])
+            list([self._get_search_list(p, mtype, callback, solist)
+                  for p in patt])
         elif patt is None:
             return list(self._patt_cache.values())
         return solist
@@ -204,7 +210,8 @@ The wrapped object need only implement the following methods:
             for so, cb in solist:
                 mo = so.search(buf)
                 if mo:
-                    self.expectindex = i+1 # save the list index of the match object
+                    # Save the list index of the match object
+                    self.expectindex = i+1
                     if cb:
                         cb(mo)
                     return mo
@@ -221,7 +228,7 @@ The wrapped object need only implement the following methods:
 
     def read(self, amt=-1, timeout=None):
         self._timed_out = 0
-        timeout=timeout or self.default_timeout
+        timeout = timeout or self.default_timeout
         ev = self.sched.add(timeout, 0, self._timeout_cb, ())
         try:
             while 1:
@@ -230,7 +237,8 @@ The wrapped object need only implement the following methods:
                 except EnvironmentError as val:
                     if val.errno == EINTR:
                         if self._timed_out == 1:
-                            raise scheduler.TimeoutError("expect: timed out during read.")
+                            raise scheduler.TimeoutError(
+                                "expect: timed out during read.")
                         else:
                             continue
                     else:
@@ -265,12 +273,12 @@ The wrapped object need only implement the following methods:
         return self.read_until("\n", timeout)
 
     def readlines(self, N=2147483646, filt=None, timeout=None):
-        """readlines([N], [filter])
-        Return a list of lines of input. Read up to N lines, optionally filterered
-        through a filter function.  """
+        """Return a list of lines of input. Read up to N lines, optionally
+        filterered through a filter function.
+        """
         if filt:
             assert isinstance(filt, collections.Callable)
-        lines = [] ; n = 0
+        lines = []; n = 0
         while n < N:
             line = self.readline(timeout)
             if filt:
@@ -300,79 +308,6 @@ The wrapped object need only implement the following methods:
     def rewind(self):
         return os.lseek(self._fo.fileno(), 0, 0)
 
-# Note: this interactive method is currently incompatible with the asyncio usage.
-# (it has an internal select)
-    def interact(self, msg=None, escape=None, cmd_interp=None):
-        import select
-        from pycopia import tty
-        if escape is None:
-            escape = chr(29) # ^]
-        assert escape < " ", "escape key must be control character"
-        self.cmd_interp = cmd_interp
-        if self.cmd_interp:
-            self.cmd_interp.set_session(self)
-            from pycopia.CLI import CommandQuit
-        print((msg or "\nEntering interactive mode."))
-        print(("Type ^%s to stop interacting." % (chr(ord(escape) | 0x40))))
-        # save tty state and set to raw mode
-        stdin_fd = sys.stdin.fileno()
-        fo_fd = self.fileno()
-        ttystate = tty.tcgetattr(stdin_fd)
-        tty.setraw(stdin_fd)
-        try:
-            self._fo.restart(1)
-        except AttributeError:
-            pass
-        while 1:
-            try:
-                rfd, wfd, xfd = select.select([fo_fd, stdin_fd], [], [])
-            except select.error as err:
-                if err.errno == EINTR:
-                    continue
-            if fo_fd in rfd:
-                try:
-                    text = self._fo.read(1)
-                except (OSError, EOFError) as err:
-                    tty.tcsetattr(stdin_fd, tty.TCSAFLUSH, ttystate)
-                    print ('*** EOF ***')
-                    print (err)
-                    break
-                if text:
-                    sys.stdout.write(text)
-                    sys.stdout.flush()
-                else:
-                    break
-            if stdin_fd in rfd:
-                char = sys.stdin.read(1)
-                if char == escape:
-                    tty.tcsetattr(stdin_fd, tty.TCSAFLUSH, ttystate)
-                    if self.cmd_interp:
-                        try:
-                            self.cmd_interp.interact()
-                            tty.setraw(stdin_fd)
-                        except CommandQuit:
-                            break
-                        except:
-                            extype, exvalue, tb = sys.exc_info()
-                            sys.stderr.write("%s: %s\n" % (extype, exvalue))
-                            sys.stderr.flush()
-                            tty.setraw(stdin_fd)
-                    else:
-                        break
-                else:
-                    try:
-                        self.write(char)
-                    except:
-                        tty.tcsetattr(stdin_fd, tty.TCSAFLUSH, ttystate)
-                        extype, exvalue, tb = sys.exc_info()
-                        sys.stderr.write("%s: %s\n" % (extype, exvalue))
-                        sys.stderr.flush()
-                        tty.setraw(stdin_fd)
-        try:
-            self._fo.restart(0)
-        except AttributeError:
-            pass
-
     def clear_cache(self):
         """Clears the pattern cache."""
         self._patt_cache.clear()
@@ -391,11 +326,10 @@ The wrapped object need only implement the following methods:
 
     def writeln(self, text):
         self.write(text+"\n")
-    writeline = writeln # alias
-    sendline = writeln
 
     def writeeol(self, text):
-        self.write(text+self._prompt) # prompt is used as EOL when used as state machine
+        # Prompt is used as EOL when used as state machine
+        self.write(text+self._prompt)
 
     def sendfile(self, filename, wait_for_prompt=0):
         fp = open(filename, "r")
@@ -460,7 +394,7 @@ def glob_translate(pat):
             if j >= n:
                 res = res + '\\['
             else:
-                stuff = pat[i:j].replace('\\','\\\\')
+                stuff = pat[i:j].replace('\\', '\\\\')
                 i = j+1
                 if stuff[0] == '!':
                     stuff = '^' + stuff[1:]
@@ -470,4 +404,3 @@ def glob_translate(pat):
         else:
             res = res + re.escape(c)
     return res + "$"
-
