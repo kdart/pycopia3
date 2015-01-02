@@ -11,7 +11,6 @@
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 #    Lesser General Public License for more details.
 
-
 """
 Replacement logging module. The Java-inspired Python logging module is
 overkill, we just let syslog handle everything.
@@ -31,13 +30,15 @@ from pycopia import basicconfig
 def warn(*args):
     print(*args, file=sys.stderr)
 
+
 def DEBUG(*args, **kwargs):
-    """Can use this instead of 'print' when debugging.
+    """Can use this instead of 'print' when debugging. Prints to stderr.
     """
     parts = []
     for name, value in list(kwargs.items()):
         parts.append("{}: {!r}".format(name, value))
-    print("DEBUG", " ".join(str(o) for o in args), ", ".join(parts), file=sys.stderr)
+    print("DEBUG", " ".join(str(o) for o in args), ", ".join(parts),
+          file=sys.stderr)
 
 # config file is optional here
 try:
@@ -46,17 +47,24 @@ except basicconfig.ConfigReadError as err:
     warn(err, "Using default values.")
     FACILITY = "USER"
     LEVEL = "WARNING"
+    STDERR = True
 else:
     FACILITY = cf.FACILITY
     LEVEL = cf.LEVEL
+    STDERR = cf.get("STDERR", True)
     del cf
 
 del basicconfig
 
 
-syslog.openlog(sys.argv[0].split("/")[-1], syslog.LOG_PID, getattr(syslog, "LOG_" + FACILITY))
+syslog.openlog(sys.argv[0].split("/")[-1],
+               syslog.LOG_PID | syslog.LOG_PERROR if STDERR else syslog.PID,
+               getattr(syslog, "LOG_" + FACILITY))
 
-_oldloglevel = syslog.setlogmask(syslog.LOG_UPTO(getattr(syslog, "LOG_" + LEVEL)))
+
+_oldloglevel = syslog.setlogmask(syslog.LOG_UPTO(
+    getattr(syslog, "LOG_" + LEVEL)))
+
 
 def close():
     syslog.closelog()
@@ -65,56 +73,68 @@ def close():
 def debug(msg):
     syslog.syslog(syslog.LOG_DEBUG, _encode(msg))
 
+
 def info(msg):
     syslog.syslog(syslog.LOG_INFO, _encode(msg))
 
-def notice(msg):
-    syslog.syslog(syslog.LOG_NOTICE, _encode(msg))
 
 def notice(msg):
     syslog.syslog(syslog.LOG_NOTICE, _encode(msg))
+
 
 def warning(msg):
     syslog.syslog(syslog.LOG_WARNING, _encode(msg))
 
+
 def error(msg):
     syslog.syslog(syslog.LOG_ERR, _encode(msg))
+
 
 def critical(msg):
     syslog.syslog(syslog.LOG_CRIT, _encode(msg))
 
+
 def alert(msg):
     syslog.syslog(syslog.LOG_ALERT, _encode(msg))
+
 
 def emergency(msg):
     syslog.syslog(syslog.LOG_EMERG, _encode(msg))
 
-### set loglevels
 
+# set loglevels
 def loglevel(level):
     global _oldloglevel
     _oldloglevel = syslog.setlogmask(syslog.LOG_UPTO(level))
 
+
 def loglevel_restore():
     syslog.setlogmask(_oldloglevel)
+
 
 def loglevel_debug():
     loglevel(syslog.LOG_DEBUG)
 
+
 def loglevel_info():
     loglevel(syslog.LOG_INFO)
+
 
 def loglevel_notice():
     loglevel(syslog.LOG_NOTICE)
 
+
 def loglevel_warning():
     loglevel(syslog.LOG_WARNING)
+
 
 def loglevel_error():
     loglevel(syslog.LOG_ERR)
 
+
 def loglevel_critical():
     loglevel(syslog.LOG_CRIT)
+
 
 def loglevel_alert():
     loglevel(syslog.LOG_ALERT)
@@ -125,17 +145,20 @@ def exception_error(prefix):
     ex, val, tb = sys.exc_info()
     error("{}: {}: {}".format(prefix, ex.__name__, val))
 
+
 def exception_warning(prefix):
     ex, val, tb = sys.exc_info()
     warning("{}: {}: {}".format(prefix, ex.__name__, val))
 
-# compatibility functions
 
+# compatibility functions
 def msg(source, *msg):
     info("{0!s}: {1}".format(source, " ".join(str(o) for o in msg)))
 
+
 def _encode(s):
     return s.replace("\r\n", " ")
+
 
 # Allow use of names, and useful aliases, to select logging level.
 LEVELS = {
@@ -165,6 +188,3 @@ class LogLevel:
 
     def __exit__(self, extype, exvalue, traceback):
         syslog.setlogmask(self._oldloglevel)
-
-
-
