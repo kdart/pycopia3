@@ -87,13 +87,13 @@ def checkline(filename, lineno, ui):
 
     line = linecache.getline(filename, lineno)
     if not line:
-        ui.Print('*** End of file')
+        ui.print('*** End of file')
         return 0
     line = line.strip()
     # Don't allow setting breakpoint at a blank line
     if (not line or (line[0] == '#') or
          (line[:3] == '"""') or line[:3] == "'''"):
-        ui.Print('*** Blank or comment')
+        ui.print('*** Blank or comment')
         return 0
     # When a file is read in and a breakpoint is at
     # the 'def' statement, the system stops there at
@@ -123,7 +123,7 @@ def checkline(filename, lineno, ui):
             lineno = lineno+1
             line = linecache.getline(filename, lineno)
             if not line:
-                ui.Print('*** end of file')
+                ui.print('*** end of file')
                 return 0
             line = line.strip()
             if not line: continue   # Blank line
@@ -335,10 +335,10 @@ class Debugger(bdb.Bdb):
     def print_stack_entry(self, frame_lineno):
         frame, lineno = frame_lineno
         if frame is self.curframe:
-            self._ui.Print(self._ui.format('%I>%N'), None)
+            self._ui.print(self._ui.format('%I>%N'), None)
         else:
-            self._ui.Print(' ', None)
-        self._ui.Print(self.format_stack_entry(frame_lineno))
+            self._ui.print(' ', None)
+        self._ui.print(self.format_stack_entry(frame_lineno))
         self.lineno = None
 
     def format_stack_entry(self, frame_lineno):
@@ -367,7 +367,7 @@ class Debugger(bdb.Bdb):
 
     def print_exc(self, ex, val):
         uif = self._ui.format
-        self._ui.Print(uif('%R'), ex, uif('%N:'), str(val))
+        self._ui.print(uif('%R'), ex, uif('%N:'), str(val))
 
     def debug(self, arg):
         sys.settrace(None)
@@ -800,7 +800,7 @@ class DebuggerCommands(CLI.BaseCommands):
                 self._print("  Extra locals:")
                 self._print("\n".join(extra))
 
-    def Print(self, argv):
+    def print(self, argv):
         """Print <expression>
     Print the value of the expression."""
         try:
@@ -920,7 +920,7 @@ class DebuggerCommands(CLI.BaseCommands):
             pass
 
 CLIaliases = {
-    "p":["Print"],
+    "p":["print"],
     "l":["list"],
     "n":["next"],
     "s":["step"],

@@ -1,10 +1,6 @@
 #!/usr/bin/python3
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
 #
-# $Id: CLI.py 723 2013-05-11 01:33:24Z keith.dart $
-#
-#    Copyright (C) 1999-2006  Keith Dart <keith@kdart.com>
-#
 #    This library is free software; you can redistribute it and/or
 #    modify it under the terms of the GNU Lesser General Public
 #    License as published by the Free Software Foundation; either
@@ -114,7 +110,7 @@ argument must match a name of a method.
         # map in user interface input and output for speed
         self._user_input = ui.user_input
         self._more_user_input = ui.more_user_input
-        self._print = ui.Print
+        self._print = ui.print
         self._pprint = ui.pprint
         self._format = ui.format
         self._print_list = ui.print_list
@@ -576,7 +572,7 @@ argument must match a name of a method.
             newargs = argv[:]
             for sloc in slocs:
                 newargs[sloc] = newargs[sloc].replace("%", str(i))
-            self._ui.Print(" ".join(newargs))
+            self._ui.print(" ".join(newargs))
             meth(newargs)
 
     def stop(self, argv):
@@ -616,9 +612,9 @@ argument must match a name of a method.
     string."""
         if len(argv) > 1:
             fmt = " ".join(argv[1:])
-            self._ui.Print(timelib.localtimestamp(fmt=fmt))
+            self._ui.print(timelib.localtimestamp(fmt=fmt))
         else:
-            self._ui.Print(timelib.localtimestamp())
+            self._ui.print(timelib.localtimestamp())
 
     def _parse_range(self, token):
         if token.find(":") >= 0:

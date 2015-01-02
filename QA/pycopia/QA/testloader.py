@@ -22,7 +22,6 @@ from pycopia.QA import core
 from pycopia.QA.exceptions import InvalidObjectError, InvalidTestError
 
 
-
 def get_test_class(dbcase):
     """Return the implementation class of a TestCase, or None if not found.
     """
@@ -33,7 +32,8 @@ def get_test_class(dbcase):
             if type(obj) is type and issubclass(obj, core.TestCase):
                 return obj
             else:
-                raise InvalidTestError("%r is not a Test class object." % (obj,))
+                raise InvalidTestError(
+                    "{!r} is not a Test class object.".format(obj))
         else:
             return None
     else:
@@ -54,12 +54,12 @@ def get_suite(dbsuite, config):
         try:
             obj = module.get_object(impl)
         except module.ObjectImportError:
-            logging.warning("Did not find suite implementation {!r}.".format(impl))
+            logging.warning(
+                "Did not find suite implementation {!r}.".format(impl))
         else:
             if type(obj) is type and issubclass(obj, core.TestSuite):
                 return obj(config, name=name)
             else:
-                raise InvalidObjectError("{!r} is not a TestSuite class object.".format(obj))
+                raise InvalidObjectError(
+                    "{!r} is not a TestSuite class object.".format(obj))
     return core.TestSuite(config, name=name)
-
-

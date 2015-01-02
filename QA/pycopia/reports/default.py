@@ -242,7 +242,7 @@ class DefaultReportUnicode(DefaultReport):
 
     def on_run_start(self, runner, timestamp=None):
         UL, hor, vert, UR, LL, LR = _BOXCHARS[1]
-        text = "{!s:12.12s}".format(timestamp)
+        text = "Start run at {}".format(timestamp)
         tt = "{}{}{}".format(UL, hor*(len(text)+2), UR)
         bt = "{}{}{}".format(LL, hor*(len(text)+2), LR)
         ml = "{} {} {}".format(vert, text, vert)
@@ -250,7 +250,7 @@ class DefaultReportUnicode(DefaultReport):
 
     def on_suite_start(self, testsuite, time=None):
         UL, hor, vert, UR, LL, LR = _BOXCHARS[2]
-        text = "{!s:12.12s} {:32.32s}".format(time.time(), testsuite.test_name)
+        text = "Start {} at {}".format(testsuite.test_name, time.time())
         tt = "{}{}{}".format(UL, hor*(len(text)+2), UR)
         bt = "{}{}{}".format(LL, hor*(len(text)+2), LR)
         ml = "{} {} {}".format(vert, text, vert)

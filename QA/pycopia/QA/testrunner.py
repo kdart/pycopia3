@@ -22,10 +22,6 @@ Modules that define a "run" function:
     namespace.
     The *execute* function is called with no arguments.
 
-Class objects that is not a TestSuite or TestCase:
-    Instantiate the class with config and environment.
-    call the instances *run* method with no arguments.
-
     Note that a UseCase class typically defines a *get_suite* method that it's
     own run method will call. the get_suite should construct a TestSuite
     instance.
@@ -33,9 +29,6 @@ Class objects that is not a TestSuite or TestCase:
 Class object that is a TestCase:
     Instantiate a TestSuite and add the test case to it. Then instantiate and
     run the TestSuite.
-
-
-
 """
 
 import os
@@ -54,6 +47,16 @@ from .constants import TestResult
 
 ModuleType = type(os)
 
+
+# Test case methods inserted into plain modules for plain module test cases.
+_EXPORTED_METHODS = ['abort', 'assertApproximatelyEqual', 'assertEqual',
+    'assertFailed', 'assertFalse', 'assertGreaterThan',
+    'assertGreaterThanOrEqual', 'assertLessThan', 'assertLessThanOrEqual',
+    'assertNotEqual', 'assertPassed', 'assertRaises', 'assertTrue',
+    'diagnostic', 'expectedfail', 'failed', 'get_filename', 'incomplete',
+    'info', 'open_data_file', 'open_log_file', 'passed', ]
+
+
 class TestRunner:
     """Runs test objects.
 
@@ -68,8 +71,9 @@ class TestRunner:
         else:
             logging.loglevel_warning()
 
-    def run(self, objects):
+    def run(self, objects, ui):
         """Main entry to run a list of runnable objects."""
+        self._ui = ui
         self.initialize()
         rv = self.run_objects(objects)
         self.finalize()
@@ -102,30 +106,33 @@ class TestRunner:
         testcases = []
         for obj in objects:
             objecttype = type(obj)
-            if objecttype is type and issubclass(obj, core.TestCase):
-                testcases.append(obj)
+            if objecttype is type:
+                if issubclass(obj, core.TestCase):
+                    testcases.append(obj)
+                if issubclass(obj, core.UseCase):
+                    rv = obj.run(self.config, self.environment, self._ui)
             elif isinstance(obj, core.TestSuite):
                 obj.run()
                 rv = obj.result
-            elif issubclass(obj, core.UseCase):
-                rv = obj.run(self.config, self.environment)
-            elif objecttype is type and hasattr(obj, "run"):
-                inst = obj(self.config, self.environment)
-                rv = inst.run()
-            elif objecttype is ModuleType and hasattr(obj, "run"):
-                tcinst = core.TestCase(self.config, self.environment)
-                for name, value in vars(tcinst).items():
-                    if name == "run":
-                        continue
-                    if callable(value):
-                        setattr(obj, name, value)
+            elif objecttype is ModuleType and hasattr(obj, "execute"):
+                tcinst = core.TestCase(self.config, self.environment, self._ui)
+                for name in _EXPORTED_METHODS:
+                    value = getattr(tcinst, name)
+                    setattr(obj, name, value)
                 obj.config = self.config
                 obj.environment = self.environment
-                rv = obj.run(self.config, self.environment)
-                del obj.config
-                del obj.environment
-                for name, value in vars(tcinst).items():
-                    if callable(value):
+                obj.UI = self._ui
+                obj.print = tcinst.info
+                obj.input = self._ui.user_input
+                try:
+                    rv = obj.execute()
+                finally:
+                    del obj.config
+                    del obj.environment
+                    del obj.UI
+                    del obj.print
+                    del obj.input
+                    for name in _EXPORTED_METHODS:
                         delattr(obj, name)
             else:
                 logging.warn("{!r} is not a runnable object.".format(obj))
@@ -152,7 +159,7 @@ class TestRunner:
             INCOMPLETE, or ABORT.
         """
 
-        suite = core.TestSuite(self.config, self.environment,
+        suite = core.TestSuite(self.config, self.environment, self._ui,
                                name="{}Suite".format(testclass.__name__))
         suite.add_test(testclass, *args, **kwargs)
         suite.run()
@@ -172,7 +179,7 @@ class TestRunner:
             The return value of the temporary TestSuite instance.
         """
 
-        suite = core.TestSuite(self.config, self.environment, 
+        suite = core.TestSuite(self.config, self.environment, self._ui,
                                name="RunTestsTempSuite")
         suite.add_tests(testclasses)
         suite.run()
@@ -204,7 +211,7 @@ class TestRunner:
         """
         cf = self.config
         self.environment = environment.get_environment(
-                cf.get("environmentname", "default"))
+            cf.get("environmentname", "default"))
         cf.username = os.environ["USER"]
         # used as the timestamp for output location.
         runnertimestamp = datetime.now().strftime("%Y%m%d-%H:%M:%S.%f")
@@ -215,7 +222,7 @@ class TestRunner:
         try:
             rpt = reports.get_report(cf)
         except ReportFindError as err:
-            cf.UI.error(str(err))
+            self._ui.error(str(err))
             raise TestRunnerError("Cannot continue without report.")
         rpt.initialize(title=" ".join(cf.get("argv", ["unknown"])))
         cf.report = rpt
@@ -250,19 +257,6 @@ class TestRunner:
         st = os.stat(cf.resultsdir)
         if st.st_nlink == 2:
             os.rmdir(cf.resultsdir)
-
-    def report_global(self):
-        """Report common, or global, information.
-        Send some information to the user interface about the available
-        parameters that a user may provide to run a test.
-        """
-        from pycopia.QA.db import models
-        cf = self.config
-        ui = cf.UI
-        ui.printf("%YAvailable environment names for the "
-                  "'%G--environmentname=%N' %Yoption%N:")
-        ui.print_list(
-            sorted([env.name for env in models.Environment.select()]))
 
 
 def get_module_version(mod):

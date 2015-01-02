@@ -1,8 +1,6 @@
 #!/usr/bin/python3.4
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
 #
-#    Copyright (C) 1999-  Keith Dart <keith@kdart.com>
-#
 #    This library is free software; you can redistribute it and/or
 #    modify it under the terms of the GNU Lesser General Public
 #    License as published by the Free Software Foundation; either
@@ -15,7 +13,6 @@
 
 """
 User Interface base classes and themes.
-
 """
 
 import sys
@@ -43,8 +40,10 @@ except ImportError:
 
 from types import MethodType, FunctionType
 
+
 class UIError(Exception):
     pass
+
 
 class UIFindError(UIError):
     pass
@@ -52,7 +51,8 @@ class UIFindError(UIError):
 # themes define some basic "look and feel" for a CLI. This includes prompt
 # srtrings and color set.
 
-class Theme(object):
+
+class Theme:
     NORMAL = RESET = ""
     BOLD = BRIGHT = ""
     BLACK = ""
@@ -77,25 +77,32 @@ class Theme(object):
     help_local = WHITE
     help_inherited = YELLOW
     help_created = GREEN
+
     def __init__(self, ps1="> ", ps2="more> ", ps3="choose", ps4="-> "):
-        self._ps1 = ps1 # main prompt
-        self._ps2 = ps2 # more input needed
-        self._ps3 = ps3 # choose prompt
-        self._ps4 = ps4 # input prompt
+        self._ps1 = ps1  # main prompt
+        self._ps2 = ps2  # more input needed
+        self._ps3 = ps3  # choose prompt
+        self._ps4 = ps4  # input prompt
         self._setcolors()
+
     def _set_ps1(self, new):
         self._ps1 = str(new)
+
     def _set_ps2(self, new):
         self._ps2 = str(new)
+
     def _set_ps3(self, new):
         self._ps3 = str(new)
+
     def _set_ps4(self, new):
         self._ps4 = str(new)
+
     _setcolors = classmethod(lambda c: None)
     ps1 = property(lambda s: s._ps1, _set_ps1, None, "primary prompt")
     ps2 = property(lambda s: s._ps2, _set_ps2, None, "more input needed")
     ps3 = property(lambda s: s._ps3, _set_ps3, None, "choose prompt")
     ps4 = property(lambda s: s._ps4, _set_ps4, None, "text input prompt")
+
 
 class BasicTheme(Theme):
     def _setcolors(cls):
@@ -125,6 +132,7 @@ class BasicTheme(Theme):
         cls.help_inherited = cls.YELLOW
         cls.help_created = cls.GREEN
     _setcolors = classmethod(_setcolors)
+
 
 class ANSITheme(BasicTheme):
     """Defines tunable parameters for the UserInterface, to provide
@@ -162,7 +170,7 @@ class ANSITheme(BasicTheme):
 DefaultTheme = ANSITheme
 
 
-class UserInterface(object):
+class UserInterface:
     """An ANSI terminal user interface for CLIs.  """
     def __init__(self, io, env=None, theme=None):
         self.set_IO(io)
@@ -180,10 +188,13 @@ class UserInterface(object):
             self._termlen, self._termwidth, x, y = tty.get_winsize(io.fileno())
         else:
             self._termlen, self._termwidth = 24, 80
+
     def get_IO(self):
         return self._io
+
     def _del_IO(self):
         self._io = None
+
     IO = property(get_IO, set_IO, _del_IO)
 
     def __del__(self):
@@ -220,7 +231,7 @@ class UserInterface(object):
         return self.__class__(self._io, self._env.copy(), theme or self._theme)
 
     # output methods
-    def Print(self, *objs):
+    def print(self, *objs):
         wr = self._io.write
         if objs:
             try:
@@ -228,7 +239,8 @@ class UserInterface(object):
                     wr(str(obj))
                     wr(" ")
                 last = objs[-1]
-                if last is not None: # don't NL if last value is None (works like trailing comma).
+                # don't NL if last value is None (works like trailing comma).
+                if last is not None:
                     wr(str(last))
                     wr("\n")
             except tty.PageQuitError:
@@ -252,7 +264,7 @@ class UserInterface(object):
     def print_list(self, clist, indent=0):
         if clist:
             width = self._termwidth - 9
-            indent = min(max(indent,0),width)
+            indent = min(max(indent, 0), width)
             ps = " " * indent
             try:
                 for c in clist[:-1]:
@@ -262,7 +274,7 @@ class UserInterface(object):
                         ps = "%s%s" % (" " * indent, cs)
                     else:
                         ps += cs
-                self.print_obj("%s%s" % (ps, clist[-1]))
+                self.print_obj("{}{}".format(ps, clist[-1]))
             except tty.PageQuitError:
                 pass
 
@@ -271,7 +283,7 @@ class UserInterface(object):
 
     def printf(self, text):
         "Print text run through the expansion formatter."
-        self.Print(self.format(text))
+        self.print(self.format(text))
 
     def error(self, text):
         self.printf("%%r%s%%N" % (text,))
@@ -291,62 +303,75 @@ class UserInterface(object):
 
     def choose(self, somelist, defidx=0, prompt=None):
         return cliutils.choose(somelist,
-                    defidx,
-                    self._get_prompt("PS3", prompt),
-                    input=self._io.raw_input, error=self.error)
+                               defidx,
+                               self._get_prompt("PS3", prompt),
+                               input=self._io.raw_input,
+                               error=self.error)
 
     def choose_value(self, somemap, default=None, prompt=None):
         return cliutils.choose_value(somemap,
-                    default,
-                    self._get_prompt("PS3", prompt),
-                    input=self._io.raw_input, error=self.error)
+                                     default,
+                                     self._get_prompt("PS3", prompt),
+                                     input=self._io.raw_input,
+                                     error=self.error)
 
     def choose_key(self, somemap, default=None, prompt=None):
         return cliutils.choose_key(somemap,
-                    default,
-                    self._get_prompt("PS3", prompt),
-                    input=self._io.raw_input, error=self.error)
+                                   default,
+                                   self._get_prompt("PS3", prompt),
+                                   input=self._io.raw_input,
+                                   error=self.error)
 
     def choose_multiple(self, somelist, chosen=None, prompt=None):
         return cliutils.choose_multiple(somelist,
-                    chosen,
-                    self._get_prompt("PS3", prompt),
-                    input=self._io.raw_input, error=self.error)
+                                        chosen,
+                                        self._get_prompt("PS3", prompt),
+                                        input=self._io.raw_input,
+                                        error=self.error)
 
     def choose_multiple_from_map(self, somemap, chosen=None, prompt=None):
         return cliutils.choose_multiple_from_map(somemap,
-                    chosen,
-                    self._get_prompt("PS3", prompt),
-                    input=self._io.raw_input, error=self.error)
+                                                 chosen,
+                                                 self._get_prompt("PS3", prompt),  # noqa
+                                                 input=self._io.raw_input,
+                                                 error=self.error)
 
     def get_text(self, msg=None):
-        return cliutils.get_text(self._get_prompt("PS4"), msg, input=self._io.raw_input)
+        return cliutils.get_text(self._get_prompt("PS4"), msg,
+                                 input=self._io.raw_input)
 
     def get_value(self, prompt, default=None):
-        return cliutils.get_input(self.prompt_format(prompt), default, self._io.raw_input)
+        return cliutils.get_input(self.prompt_format(prompt), default,
+                                  self._io.raw_input)
 
     def edit_text(self, text, prompt=None):
         return cliutils.edit_text(text, self._get_prompt("PS4", prompt))
 
     def get_int(self, prompt="", default=None):
-        return cliutils.get_int(prompt, default, input=self._io.raw_input, error=self.error)
+        return cliutils.get_int(prompt, default, input=self._io.raw_input,
+                                error=self.error)
 
     def get_float(self, prompt="", default=None):
-        return cliutils.get_float(prompt, default, input=self._io.raw_input, error=self.error)
+        return cliutils.get_float(prompt, default, input=self._io.raw_input,
+                                  error=self.error)
 
     def get_bool(self, prompt="", default=None):
-        return cliutils.get_bool(prompt, default, input=self._io.raw_input, error=self.error)
+        return cliutils.get_bool(prompt, default,
+                                 input=self._io.raw_input,
+                                 error=self.error)
 
     def yes_no(self, prompt, default=True):
         while 1:
-            yesno = cliutils.get_input(self.prompt_format(prompt), "Y" if default else "N", self._io.raw_input)
+            yesno = cliutils.get_input(self.prompt_format(prompt),
+                                       "Y" if default else "N",
+                                       self._io.raw_input)
             yesno = yesno.upper()
             if yesno.startswith("Y"):
                 return True
             elif yesno.startswith("N"):
                 return False
             else:
-                self.Print("Please enter yes or no.")
+                self.print("Please enter yes or no.")
 
     def get_key(self, prompt=""):
         return tty.get_key(prompt)
@@ -362,18 +387,19 @@ class UserInterface(object):
     def _format_doc(self, s, color):
         i = s.find("\n")
         if i > 0:
-            return color + s[:i] + self._theme.NORMAL + self.format(s[i:]) + "\n"
+            return (color + s[:i] +
+                    self._theme.NORMAL + self.format(s[i:]) + "\n")
         else:
             return color + s + self._theme.NORMAL + "\n"
 
     def help_local(self, text):
-        self.Print(self._format_doc(text, self._theme.help_local))
+        self.print(self._format_doc(text, self._theme.help_local))
 
     def help_inherited(self, text):
-        self.Print(self._format_doc(text, self._theme.help_inherited))
+        self.print(self._format_doc(text, self._theme.help_inherited))
 
     def help_created(self, text):
-        self.Print(self._format_doc(text, self._theme.help_created))
+        self.print(self._format_doc(text, self._theme.help_created))
 
     def prompt_format(self, ps):
         "Expand percent-exansions in a string for readline prompts."
@@ -399,7 +425,7 @@ class UserInterface(object):
         the character expanded on.
         """
         key = str(key)[0]
-        if not key in self._PROMPT_EXPANSIONS:
+        if key not in self._PROMPT_EXPANSIONS:
             self._PROMPT_EXPANSIONS[key] = func
         else:
             raise ValueError("expansion key %r already exists." % (key, ))
@@ -426,48 +452,64 @@ class UserInterface(object):
     def _initfsm(self):
         # maps percent-expansion items to some value.
         theme = self._theme
-        self._PROMPT_EXPANSIONS = { # used in prompt strings given to readline library.
-                    "I":PROMPT_START_IGNORE + theme.BRIGHT + PROMPT_END_IGNORE,
-                    "N":PROMPT_START_IGNORE + theme.NORMAL + PROMPT_END_IGNORE,
-                    "D":PROMPT_START_IGNORE + theme.DEFAULT + PROMPT_END_IGNORE,
-                    "R":PROMPT_START_IGNORE + theme.BRIGHTRED + PROMPT_END_IGNORE,
-                    "G":PROMPT_START_IGNORE + theme.BRIGHTGREEN + PROMPT_END_IGNORE,
-                    "Y":PROMPT_START_IGNORE + theme.BRIGHTYELLOW + PROMPT_END_IGNORE,
-                    "B":PROMPT_START_IGNORE + theme.BRIGHTBLUE + PROMPT_END_IGNORE,
-                    "M":PROMPT_START_IGNORE + theme.BRIGHTMAGENTA + PROMPT_END_IGNORE,
-                    "C":PROMPT_START_IGNORE + theme.BRIGHTCYAN + PROMPT_END_IGNORE,
-                    "W":PROMPT_START_IGNORE + theme.BRIGHTWHITE + PROMPT_END_IGNORE,
-                    "r":PROMPT_START_IGNORE + theme.RED + PROMPT_END_IGNORE,
-                    "g":PROMPT_START_IGNORE + theme.GREEN + PROMPT_END_IGNORE,
-                    "y":PROMPT_START_IGNORE + theme.YELLOW + PROMPT_END_IGNORE,
-                    "b":PROMPT_START_IGNORE + theme.BLUE + PROMPT_END_IGNORE,
-                    "m":PROMPT_START_IGNORE + theme.MAGENTA + PROMPT_END_IGNORE,
-                    "c":PROMPT_START_IGNORE + theme.CYAN + PROMPT_END_IGNORE,
-                    "w":PROMPT_START_IGNORE + theme.WHITE + PROMPT_END_IGNORE,
-                    "n":"\n", "l":self._tty, "h":self._hostname, "u":self._username,
-                    "$": self._priv, "d":self._cwd, "L": self._shlvl, "t":self._time,
-                    "T":self._date}
+        # Used in prompt strings given to readline library.
+        self._PROMPT_EXPANSIONS = {
+            "I": PROMPT_START_IGNORE + theme.BRIGHT + PROMPT_END_IGNORE,
+            "N": PROMPT_START_IGNORE + theme.NORMAL + PROMPT_END_IGNORE,
+            "D": PROMPT_START_IGNORE + theme.DEFAULT + PROMPT_END_IGNORE,
+            "R": PROMPT_START_IGNORE + theme.BRIGHTRED + PROMPT_END_IGNORE,
+            "G": PROMPT_START_IGNORE + theme.BRIGHTGREEN + PROMPT_END_IGNORE,
+            "Y": PROMPT_START_IGNORE + theme.BRIGHTYELLOW + PROMPT_END_IGNORE,
+            "B": PROMPT_START_IGNORE + theme.BRIGHTBLUE + PROMPT_END_IGNORE,
+            "M": PROMPT_START_IGNORE + theme.BRIGHTMAGENTA + PROMPT_END_IGNORE,
+            "C": PROMPT_START_IGNORE + theme.BRIGHTCYAN + PROMPT_END_IGNORE,
+            "W": PROMPT_START_IGNORE + theme.BRIGHTWHITE + PROMPT_END_IGNORE,
+            "r": PROMPT_START_IGNORE + theme.RED + PROMPT_END_IGNORE,
+            "g": PROMPT_START_IGNORE + theme.GREEN + PROMPT_END_IGNORE,
+            "y": PROMPT_START_IGNORE + theme.YELLOW + PROMPT_END_IGNORE,
+            "b": PROMPT_START_IGNORE + theme.BLUE + PROMPT_END_IGNORE,
+            "m": PROMPT_START_IGNORE + theme.MAGENTA + PROMPT_END_IGNORE,
+            "c": PROMPT_START_IGNORE + theme.CYAN + PROMPT_END_IGNORE,
+            "w": PROMPT_START_IGNORE + theme.WHITE + PROMPT_END_IGNORE,
+            "n": "\n",
+            "l": self._tty,
+            "h": self._hostname,
+            "u": self._username,
+            "$": self._priv,
+            "d": self._cwd,
+            "L": self._shlvl,
+            "t": self._time,
+            "T": self._date,
+            }
+
         self._FORMAT_EXPANSIONS = {
-                    "I": theme.BRIGHT,
-                    "N": theme.NORMAL,
-                    "D": theme.DEFAULT,
-                    "R": theme.BRIGHTRED,
-                    "G": theme.BRIGHTGREEN,
-                    "Y": theme.BRIGHTYELLOW,
-                    "B": theme.BRIGHTBLUE,
-                    "M": theme.BRIGHTMAGENTA,
-                    "C": theme.BRIGHTCYAN,
-                    "W": theme.BRIGHTWHITE,
-                    "r": theme.RED,
-                    "g": theme.GREEN,
-                    "y": theme.YELLOW,
-                    "b": theme.BLUE,
-                    "m": theme.MAGENTA,
-                    "c": theme.CYAN,
-                    "w": theme.WHITE,
-                    "n":"\n", "l":self._tty, "h":self._hostname, "u":self._username,
-                    "$": self._priv, "d":self._cwd, "L": self._shlvl, "t":self._time,
-                    "T":self._date}
+            "I": theme.BRIGHT,
+            "N": theme.NORMAL,
+            "D": theme.DEFAULT,
+            "R": theme.BRIGHTRED,
+            "G": theme.BRIGHTGREEN,
+            "Y": theme.BRIGHTYELLOW,
+            "B": theme.BRIGHTBLUE,
+            "M": theme.BRIGHTMAGENTA,
+            "C": theme.BRIGHTCYAN,
+            "W": theme.BRIGHTWHITE,
+            "r": theme.RED,
+            "g": theme.GREEN,
+            "y": theme.YELLOW,
+            "b": theme.BLUE,
+            "m": theme.MAGENTA,
+            "c": theme.CYAN,
+            "w": theme.WHITE,
+            "n": "\n",
+            "l": self._tty,
+            "h": self._hostname,
+            "u": self._username,
+            "$": self._priv,
+            "d": self._cwd,
+            "L": self._shlvl,
+            "t": self._time,
+            "T": self._date,
+            }
 
         fp = FSM(0)
         fp.add_default_transition(self._error, 0)
@@ -562,7 +604,8 @@ class UserInterface(object):
         return time.strftime("%m/%d/%Y", time.localtime())
 
     def _error(self, input_symbol, fsm):
-        self._io.errlog('Prompt string error: %s\n%r' % (input_symbol, fsm.stack))
+        self._io.errlog(
+            'Prompt string error: {}\n{!r}'.format(input_symbol, fsm.stack))
         fsm.reset()
 
     def _addtext(self, c, fsm):
@@ -595,18 +638,20 @@ class UserInterface(object):
                 if length:
                     context[objid] = 1
                     indent = indent + 2
-                    items  = list(obj.items())
+                    items = list(obj.items())
                     items.sort()
                     key, ent = items[0]
                     rep = self._repr(key, context, level)
                     write(rep)
                     write(': ')
-                    self._format(ent, indent + len(rep) + 2, allowance + 1, context, level)
+                    self._format(ent, indent + len(rep) + 2, allowance + 1,
+                                 context, level)
                     if length > 1:
                         for key, ent in items[1:]:
                             rep = self._repr(key, context, level)
                             write(',\n%s%s: ' % (' '*indent, rep))
-                            self._format(ent, indent + len(rep) + 2, allowance + 1, context, level)
+                            self._format(ent, indent + len(rep) + 2,
+                                         allowance + 1, context, level)
                     indent = indent - 2
                     del context[objid]
                 write('\n}')
@@ -635,8 +680,8 @@ class UserInterface(object):
         return _safe_repr(obj, context, maxlevels, level)
 
 
-class FormatWrapper(object):
-    """Wrap any object with a format. 
+class FormatWrapper:
+    """Wrap any object with a format.
 
     The format string should have an '%O' component that will be expanded to
     the stringified object given here.
@@ -662,19 +707,20 @@ class FormatWrapper(object):
     def __repr__(self):
         return _safe_repr(self.value, set(), None, 0)
 
-    def __cmp__(self, other):
+    def __eq__(self, other):
         if type(other) is FormatWrapper:
-            return cmp(self.value, other.value)
+            return self.value == other.value
         else:
-            return cmp(self.value, other)
+            return self.value == other
 
 
 def safe_repr(value):
-    """Return a representational string of the given object. 
+    """Return a representational string of the given object.
 
     Large or recursive objects or detected and clipped.
     """
     return _safe_repr(value, set(), None, 0)
+
 
 # Return repr_string
 def _safe_repr(obj, context, maxlevels, level):
@@ -752,20 +798,24 @@ def _safe_repr(obj, context, maxlevels, level):
 
     return repr(obj)
 
+
 def _recursion(obj):
     return ("<Recursion on %s with id=%s>" % (type(obj).__name__, id(obj)))
+
 
 def method_repr(method):
     methname = method.__func__.__name__
     # formal names
-    varnames = list(method.__func__.__code__.co_varnames)[:method.__func__.__code__.co_argcount]
+    varnames = list(method.__func__.__code__.co_varnames)[:method.__func__.__code__.co_argcount]  # noqa
     if method.__func__.__defaults__:
         ld = len(method.__func__.__defaults__)
         varlist = [", ".join(varnames[:-ld]),
-                   ", ".join(["%s=%r" % (n, v) for n, v in zip(varnames[-ld:], method.__func__.__defaults__)])]
-        return "%s(%s)" % (methname, ", ".join(varlist))
+                   ", ".join(["{}={!r}".format(n, v) for n, v in zip(
+                             varnames[-ld:], method.__func__.__defaults__)])]
+        return "{}({})".format(methname, ", ".join(varlist))
     else:
-        return "%s(%s)" % (methname, ", ".join(varnames))
+        return "{}({})".format(methname, ", ".join(varnames))
+
 
 def function_repr(func):
     methname = func.__name__
@@ -775,10 +825,11 @@ def function_repr(func):
     if func.__defaults__:
         ld = len(func.__defaults__)
         varlist = varnames[:-ld]
-        varlist.extend(["%s=%r" % (n, v) for n, v in zip(varnames[-ld:], func.__defaults__)])
-        return "%s(%s)" % (methname, ", ".join(varlist))
+        varlist.extend(["{}={!r}".format(n, v) for n, v in zip(
+                       varnames[-ld:], func.__defaults__)])
+        return "{}({})".format(methname, ", ".join(varlist))
     else:
-        return "%s(%s)" % (methname, ", ".join(varnames))
+        return "{}({})".format(methname, ", ".join(varnames))
 
 
 def _get_object(name):
@@ -794,17 +845,21 @@ def _get_object(name):
                 try:
                     mod = __import__(modname, globals(), locals(), ["*"])
                 except ImportError as err:
-                    raise UIFindError("Could not find UI module %s: %s" % (modname, err))
+                    raise UIFindError(
+                        "Could not find UI module {}: {}".format(modname, err))
             try:
                 return getattr(mod, name[i+1:])
             except AttributeError:
-                raise UIFindError("Could not find UI object %r in module %r." % (name, modname))
+                raise UIFindError(
+                    "Could not find UI object {!r} in module {!r}.".format(
+                        name, modname))
         else:
-            raise UIFindError("%s is not a valid object path." % (name,))
+            raise UIFindError("{} is not a valid object path.".format(name))
+
 
 # construct a user interface from object names given as strings.
 def get_userinterface(uiname="UserInterface",
-                ioname="pycopia.IO.ConsoleIO", themename=None):
+                      ioname="pycopia.IO.ConsoleIO", themename=None):
     if type(ioname) is str:
         ioobj = _get_object(ioname)
     elif hasattr(ioname, "write"):
@@ -815,7 +870,7 @@ def get_userinterface(uiname="UserInterface",
         raise UIFindError("not a valid IO object: %r" % (ioobj,))
 
     uiobj = _get_object(uiname)
-    if not hasattr(uiobj, "Print"):
+    if not hasattr(uiobj, "print"):
         raise UIFindError("not a valid UI object: %r" % (uiobj,))
     if themename is not None:
         themeobj = _get_object(themename)
@@ -825,13 +880,13 @@ def get_userinterface(uiname="UserInterface",
     else:
         return uiobj(ioobj())
 
+
 def _test(argv):
     ui = get_userinterface()
-    ui.Print("Hello world!")
+    ui.print("Hello world!")
     inp = ui.user_input("Type something> ")
-    ui.Print("You typed:", inp)
+    ui.print("You typed:", inp)
     return ui
 
 if __name__ == "__main__":
     ui = _test(sys.argv)
-

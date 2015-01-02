@@ -62,11 +62,9 @@ from pycopia import debugger
 from pycopia import dictlib
 from pycopia import module
 from pycopia import combinatorics
-from pycopia.QA.signals import *
-from pycopia.QA.exceptions import *
-
 from pycopia.QA.constants import TestResult
-
+from pycopia.QA.signals import *  # noqa
+from pycopia.QA.exceptions import *  # noqa
 
 
 class TestOptions:
@@ -105,14 +103,14 @@ class TestCase:
     OPTIONS = TestOptions({})
     PREREQUISITES = []
 
-    def __init__(self, config, environment):
+    def __init__(self, config, environment, ui):
         cl = self.__class__
         self.test_name = "%s.%s" % (cl.__module__, cl.__name__)
         self.config = config
-        self.environment = environment
-        #self._report = config.report
         self._debug = config.flags.DEBUG
         self._verbose = config.flags.VERBOSE
+        self.environment = environment
+        self.UI = ui
 
     @classmethod
     def set_test_options(cls):
@@ -162,15 +160,16 @@ class TestCase:
         except AssertionError as errval:
             self.failed("failed assertion: {}".format(errval))
         except TestSuiteAbort:
-            raise # pass this one up to suite
-        except debugger.DebuggerQuit: # set_trace "leaks" BdbQuit
+            raise  # pass this one up to suite
+        except debugger.DebuggerQuit:  # set_trace "leaks" BdbQuit
             self.incomplete("{}: Debugger exit.".format(self.test_name))
         except:
             ex, val, tb = sys.exc_info()
             if self._debug:
                 debugger.post_mortem(tb, ex, val)
                 tb = None
-            self.incomplete("{}: Exception: ({}: {})".format(self.test_name, ex, val))
+            self.incomplete("{}: Exception: ({}: {})".format(
+                self.test_name, ex, val))
         endtime = datetime.now()
         test_end.send(self, time=endtime)
         self._finalize()
@@ -186,11 +185,11 @@ class TestCase:
                 debugger.post_mortem(tb, ex, val)
             raise TestSuiteAbort("Test initialization failed!")
 
-    #Run user-defined `finalize()` and catch exceptions. If an exception
-    #occurs in the finalize() method (which is supposed to clean up from
-    #the test and leave the UUT in the same condition as when it was
-    #entered) then abort the test suite.
-    #Invokes the debugger if the debug flag is set.
+    # Run user-defined `finalize()` and catch exceptions. If an exception
+    # occurs in the finalize() method (which is supposed to clean up from
+    # the test and leave the UUT in the same condition as when it was
+    # entered) then abort the test suite.
+    # Invokes the debugger if the debug flag is set.
     def _finalize(self):
         try:
             self.finalize()
@@ -211,12 +210,14 @@ class TestCase:
         it later to the test report via the time stamp. The path points to the
         resultsdir location.
         """
-        filename = "%s-%s.%s" % (basename or self.test_name.replace(".", "_"),
-                self.startime, ext)
+        filename = "{}-{}.{}".format(basename or
+                                     self.test_name.replace(".", "_"),
+                                     self.startime, ext)
         return os.path.join(self.config.resultsdir, filename)
 
     def open_log_file(self, basename=None, ext="log", mode="a+"):
-        """Return a file object that you can write to in the results location."""
+        """Return a file object that you can write to in the results location.
+        """
         fname = self.get_filename(basename, ext)
         return open(fname, mode)
 
@@ -234,7 +235,7 @@ class TestCase:
         """
         debugger.set_trace(start=2)
 
-    ### the overrideable methods follow ###
+    # The overrideable methods follow
     def initialize(self):
         """Hook method to initialize a test.
 
@@ -257,18 +258,21 @@ class TestCase:
         ``failed``, or ``incomplete``.
         """
         return self.incomplete(
-                'you must define a method named "execute" in your subclass.')
+            'you must define a method named "execute" in your subclass.')
 
     # result reporting methods
     def passed(self, msg="Passed"):
-        """Call this and return if the execute() determines the test case passed.
+        """Call this and return if the execute() determines the test case
+        passed.
 
-        Only invoke this method if it is positively determined that the test case passed.
+        Only invoke this method if it is positively determined that the test
+        case passed.
         """
         test_passed.send(self, message=msg)
 
     def failed(self, msg="Failed"):
-        """Call this and return if the execute() method determines the test case failed.
+        """Call this and return if the execute() method determines the test
+        case failed.
 
         Only call this if your test implementation in the execute is positively
         sure that it does not meet the criteria. Other kinds of errors should
@@ -278,8 +282,10 @@ class TestCase:
         and EXPECTED_FAIL result.
         """
         if self.OPTIONS.bugid:
-            test_diagnostic.send(self,
-                message="This failure was expected. see bug: {}.".format(self.OPTIONS.bugid))
+            test_diagnostic.send(
+                self,
+                message="This failure was expected. see bug: {}.".format(
+                    self.OPTIONS.bugid))
             test_expected_failure.send(self, message=msg)
         else:
             test_failure.send(self, message=msg)
@@ -325,14 +331,16 @@ class TestCase:
         test_diagnostic.send(self, message=msg)
 
     def manual(self):
-        """Perform a purely manual test according to the instructions in the document string.
+        """Perform a purely manual test according to the instructions in the
+        document string.
 
         This allows manual tests to be mixed with automated tests.
         """
-        UI = self.config.UI
+        UI = self.UI
         UI.print(self.test_name)
         UI.write(self.__class__.__doc__)
-        UI.print("\nPlease perform this test according to the instructions above.")
+        UI.print("\nPlease perform this test according "
+                 "to the instructions above.")
         completed = UI.yes_no("%IWas it completed%N?")
         if completed:
             passed = UI.yes_no("Did it pass?")
@@ -434,16 +442,18 @@ class TestCase:
         """Asserts that the numeric arguments are approximately equal.
 
         Raises TestFailError if the second argument is outside a tolerance
-        range (defined by the "fudge factor").    The default is 5% of the first
+        range (defined by the "fudge factor"). The default is 5% of the first
         argument.
         """
         if fudge is None:
             fudge = arg1*0.05
         if abs(arg1-arg2) > fudge:
-            raise TestFailError(msg or "%s and %s not within %s units of each other." % \
-                        (arg1, arg2, fudge))
+            raise TestFailError(
+                msg or "{} and {} not within {} units of each other.".format(
+                    arg1, arg2, fudge))
 
-    def assertRaises(self, exception, method, args=None, kwargs=None, msg=None):
+    def assertRaises(self, exception, method, args=None, kwargs=None,
+                     msg=None):
         """Assert that a method and the given args will raise the given
         exception.
 
@@ -461,7 +471,8 @@ class TestCase:
         except exception:
             return
         # it might raise another exception, which is marked INCOMPLETE
-        raise TestFailError(msg or "%r did not raise %r." % (method, exception))
+        raise TestFailError(
+            msg or "{!r} did not raise {!r}.".format(method, exception))
 
     @classmethod
     def open_data_file(cls, fname):
@@ -469,12 +480,9 @@ class TestCase:
         implmentation.
         """
         fullname = os.path.join(
-                    os.path.dirname(sys.modules[cls.__module__].__file__), fname)
+            os.path.dirname(sys.modules[cls.__module__].__file__), fname)
         return open(fullname)
 
-
-
-# --------------------
 
 class PreReq:
     """A holder for test prerequisite.
@@ -489,9 +497,9 @@ class PreReq:
         self.kwargs = kwargs or {}
 
     def __repr__(self):
-        return "%s(%r, args=%r, kwargs=%r)" % \
-                (self.__class__.__name__, self.implementation,
-                        self.args, self.kwargs)
+        return "{}({!r}, args={!r}, kwargs={!r})".format(
+            self.__class__.__name__, self.implementation,
+            self.args, self.kwargs)
 
     def __str__(self):
         return repr_test(self.implementation, self.args, self.kwargs)
@@ -506,7 +514,8 @@ class TestEntry:
         self.inst = inst
         self.args = args or ()
         self.kwargs = kwargs or {}
-        self.autoadded = autoadded # True if automatically added as a prerequisite.
+        # True if automatically added as a prerequisite:
+        self.autoadded = autoadded
         self.result = TestResult.NA
         test_passed.connect(self._passed, sender=inst)
         test_incomplete.connect(self._incomplete, sender=inst)
@@ -515,22 +524,26 @@ class TestEntry:
 
     def _passed(self, testcase, message=None):
         if self.result != TestResult.NA:
-            raise TestImplementationError("Setting PASSED when result already set.")
+            raise TestImplementationError(
+                "Setting PASSED when result already set.")
         self.result = TestResult.PASSED
 
     def _incomplete(self, testcase, message=None):
         if self.result != TestResult.NA:
-            raise TestImplementationError("Setting INCOMPLETE when result already set.")
+            raise TestImplementationError(
+                "Setting INCOMPLETE when result already set.")
         self.result = TestResult.INCOMPLETE
 
     def _failure(self, testcase, message=None):
         if self.result != TestResult.NA:
-            raise TestImplementationError("Setting FAILED when result already set.")
+            raise TestImplementationError(
+                "Setting FAILED when result already set.")
         self.result = TestResult.FAILED
 
     def _expected_failure(self, testcase, message=None):
         if self.result != TestResult.NA:
-            raise TestImplementationError("Setting EXPECTED_FAIL when result already set.")
+            raise TestImplementationError(
+                "Setting EXPECTED_FAIL when result already set.")
         self.result = TestResult.EXPECTED_FAIL
 
     def run(self):
@@ -549,16 +562,16 @@ class TestEntry:
 
         Determine if a test name and set of arguments matches this test.
         """
-        return (name, args, kwargs) == \
-                    (self.inst.test_name, self.args, self.kwargs)
+        return (name, args, kwargs) == (
+            self.inst.test_name, self.args, self.kwargs)
 
     def match_prerequisite(self, prereq):
         """Does this test match the specified prerequisite?
 
         Returns True if this test matches the supplied PreReq object.
         """
-        return (self.inst.test_name, self.args, self.kwargs) == \
-                    (prereq.implementation, prereq.args, prereq.kwargs)
+        return ((self.inst.test_name, self.args, self.kwargs) ==
+                (prereq.implementation, prereq.args, prereq.kwargs))
 
     @property
     def prerequisites(self):
@@ -600,6 +613,7 @@ class SuiteEntry:
 def PruneEnd(n, l):
     return l[:n]
 
+
 class TestEntrySeries(TestEntry):
     """A single entry for a dynamic series of tests.
 
@@ -611,7 +625,7 @@ class TestEntrySeries(TestEntry):
         self.args = args or ()
         self.kwargs = kwargs or {}
         self._sig = inspect.signature(testinstance.execute)
-        self.result = TestResult.NA # aggregate result
+        self.result = TestResult.NA  # aggregate result
         chooser = chooser or PruneEnd
         arglist = []
         if args:
@@ -624,7 +638,8 @@ class TestEntrySeries(TestEntry):
                     pass
                 else:
                     arglist.append(val)
-        self._counter = combinatorics.ListCounter(combinatorics.prune(N, arglist, chooser))
+        self._counter = combinatorics.ListCounter(
+            combinatorics.prune(N, arglist, chooser))
         if filt:
             assert callable(filt)
             self._filter = filt
@@ -639,13 +654,14 @@ class TestEntrySeries(TestEntry):
         """Does this test match the specified prerequisite?
 
         Returns True if this test name matches the supplied PreReq object.
-        Only the name is checked for series tests, since the arguments may vary.
+        Only the name is checked for series tests, since the arguments may
+        vary.
         """
         return self.inst.test_name == prereq.implementation
 
     def run(self):
-        resultset = {TestResult.PASSED:0, TestResult.FAILED:0,
-                TestResult.EXPECTED_FAIL:0, TestResult.INCOMPLETE:0}
+        resultset = {TestResult.PASSED: 0, TestResult.FAILED: 0,
+                     TestResult.EXPECTED_FAIL: 0, TestResult.INCOMPLETE: 0}
         for argset in self._counter:
             kwargs = self._sig.get_keyword_arguments(argset)
             # kwargs also contains non-keyword args, but python maps them to
@@ -670,6 +686,7 @@ def repr_test(name, args, kwargs):
     """
     return "%s()(%s)" % (name, repr_args(args, kwargs))
 
+
 def repr_args(args, kwargs):
     """Stringify a set of arguments.
 
@@ -679,9 +696,9 @@ def repr_args(args, kwargs):
     Returns:
         String as you would write it in a script.
     """
-    args_s = (("%s, " if kwargs else "%s") % ", ".join(map(repr, args))) if args else ""
-    kws = ", ".join(["%s=%r" % (it[0], it[1]) for it in list(kwargs.items())])
-    return "%s%s" % (args_s, kws)
+    args_s = ("{}, " if kwargs else "{}").format(", ".join(map(repr, args))) if args else ""  # noqa
+    kws = ", ".join(["{}={!r}".format(it[0], it[1]) for it in kwargs.items()])
+    return str(args_s) + str(kws)
 
 
 def parse_args(arguments):
@@ -690,40 +707,43 @@ def parse_args(arguments):
     """
     # Try a possibly icky method of constructing a temporary function string
     # and exec it (leverage Python parser and argument handling).
-    ANY = None # To allow "ANY" keyword in prereq spec.
+    ANY = None  # To allow "ANY" keyword in prereq spec.
+
     def _ArgGetter(*args, **kwargs):
         return args, kwargs
     funcstr = "args, kwargs = _ArgGetter(%s)\n" % arguments
     exec(funcstr, locals())
-    return args, kwargs # set by exec call
+    return args, kwargs  # set by exec call
 
 
 class TestSuite:
     """A TestCase holder and runner.
 
-    A TestSuite contains a set of test cases (subclasses of TestCase class) that
-    are run sequentially, in the order added. It monitors abort status of
+    A TestSuite contains a set of test cases (subclasses of TestCase class)
+    that are run sequentially, in the order added. It monitors abort status of
     each test, and aborts the suite if required.
 
-    To run it, create a TestSuite object (or a subclass with some methods overridden),
-    Add tests with the `add_test()` method, and then call the instance's run method.
-    The 'initialize()' method will be run with the arguments given when run.
+    To run it, create a TestSuite object (or a subclass with some methods
+    overridden), Add tests with the `add_test()` method, and then call the
+    instance's run method.  The 'initialize()' method will be run with the
+    arguments given when run.
 
-    The test result if a suite is the aggregate of contained tests. If all tests
-    pass the suite is passed also. If any fail, the suite is failed. If any are
-    incomplete the suite is incomplete.
+    The test result if a suite is the aggregate of contained tests. If all
+    tests pass the suite is passed also. If any fail, the suite is failed. If
+    any are incomplete the suite is incomplete.
     """
-    def __init__(self, cf, environment, nested=0, name=None):
+    def __init__(self, cf, environment, ui, nested=0, name=None):
         self.config = cf
         self.environment = environment
+        self.ui = ui
+        cl = self.__class__
+        self.test_name = name or "{}.{}".format(cl.__module__, cl.__name__)
+        self.result = TestResult.NA
         self._debug = cf.flags.DEBUG
         self._tests = []
         self._testset = set()
         self._multitestset = set()
         self._nested = nested
-        cl = self.__class__
-        self.test_name = name or "%s.%s" % (cl.__module__, cl.__name__)
-        self.result = TestResult.NA
 
     def __iter__(self):
         return iter(self._tests)
@@ -736,12 +756,14 @@ class TestSuite:
                 # in the same module as the defining test, and convert to full
                 # path using that module.
                 if "." not in impl:
-                    impl = sys.modules[entry.inst.__class__.__module__].__name__ + "." + impl
+                    impl = sys.modules[
+                        entry.inst.__class__.__module__].__name__ + "." + impl
                     prereq.implementation = impl
                 pretestclass = module.get_object(impl)
                 pretestclass.set_test_options()
-                preentry = TestEntry(pretestclass(self.config, self.environment),
-                        prereq.args, prereq.kwargs, True)
+                preentry = TestEntry(
+                    pretestclass(self.config, self.environment, self.ui),
+                    prereq.args, prereq.kwargs, True)
                 presig, argsig = preentry.signature
                 if presig not in self._multitestset:
                     self._add_with_prereq(preentry, True)
@@ -751,7 +773,6 @@ class TestSuite:
         elif testcaseid not in self._testset:
                 self._tests.append(entry)
         self._testset.add(testcaseid)
-
 
     def add_test(self, _testclass, *args, **kwargs):
         """Add a TestCase subclass and its arguments to the suite.
@@ -764,7 +785,7 @@ class TestSuite:
         if isinstance(_testclass, str):
             _testclass = module.get_class(_testclass)
         _testclass.set_test_options()
-        testinstance = _testclass(self.config, self.environment)
+        testinstance = _testclass(self.config, self.environment, self.ui)
         entry = TestEntry(testinstance, args, kwargs, False)
         self._add_with_prereq(entry)
 
@@ -784,7 +805,7 @@ class TestSuite:
                 self.add_test(testclass, *args, **kwargs)
 
     def add_test_series(self, _testclass, N=100, chooser=None, filter=None,
-                                        args=None, kwargs=None):
+                        args=None, kwargs=None):
         """Add a TestCase case as a series.
 
         The arguments must be lists of possible values for each parameter. The
@@ -793,7 +814,8 @@ class TestSuite:
         adjusted by the chooser callback, and the N value itself.
 
         Args:
-            testclass (class): the TestCase class object (subclass of core.TestCase).
+            testclass (class): the TestCase class object
+                               (subclass of core.TestCase).
 
             N (integer): Maximum iterations to take from resulting set. Default
                     is 100 just to be safe.
@@ -803,35 +825,38 @@ class TestSuite:
                     Default is to chop off the top end of the list.
 
             filter (callable): callable that takes a set of arguments with the
-                    same semantics as the TestCase.execute() method and returns True or
-                    False to indicate if that combination should be included in the
-                    test. You might want to set a large N if you use this.
+                               same semantics as the TestCase.execute() method
+                               and returns True or False to indicate if that
+                               combination should be included in the test. You
+                               might want to set a large N if you use this.
 
-            args (tuple): tuple of positional arguments, each argument is a list.
-                                        example: args=([1,2,3], [4,5]) maps to positional
-                                        argumnts of execute() method of TestCase class.
+            args (tuple): tuple of positional arguments, each argument is a
+                          list.  example: args=([1,2,3], [4,5]) maps to
+                          positional argumnts of execute() method of TestCase
+                          class.
 
             kwargs (dict): Dictionary of keyword arguments, with list of values
-                    as value.
-                                        example: kwargs={"arg1":["a", "b", "c"]}
-                                        maps to keyword arguments of execute() method of TestCase
-                                        class.
+                           as value.
+                           example: kwargs={"arg1":["a", "b", "c"]} maps to
+                           keyword arguments of execute() method of TestCase
+                           class.
+
         """
         if isinstance(_testclass, str):
             _testclass = module.get_class(_testclass)
         _testclass.set_test_options()
-        testinstance = _testclass(self.config, self.environment)
+        testinstance = _testclass(self.config, self.environment, self.ui)
         try:
             entry = TestEntrySeries(
-                    testinstance, N, chooser, filter, args, kwargs)
+                testinstance, N, chooser, filter, args, kwargs)
         except ValueError as err:
             self.info("add_test_series: {}. Not adding {} as series.".format(
-                    err, _testclass.__name__))
+                err, _testclass.__name__))
         else:
             # series tests don't get auto-added (can't know what all the args
             # are, and even so the set could be large.)
             mysig, myargsig = entry.signature
-            self._multitestset.add(mysig) # only add by id.
+            self._multitestset.add(mysig)  # only add by id.
             self._add_with_prereq(entry)
 
     def add_suite(self, suite, test_name=None):
@@ -842,7 +867,7 @@ class TestSuite:
     """
         if isinstance(suite, str):
             suite = module.get_class(suite)
-        if type(suite) is type(TestCase): # class type
+        if type(suite) is type(TestCase):  # class type
             suite = suite(self.config, 1)
         else:
             suite.config = self.config
@@ -890,10 +915,8 @@ class TestSuite:
 
     @property
     def prerequisites(self):
-        """Get the list of prerequisites.
-
-        This is here for polymorhism with TestCase objects. Always return empty list.
-        """
+        # This is here for polymorhism with TestCase objects. Always return
+        # empty list.
         return ()
 
     def run(self):
@@ -940,13 +963,13 @@ class TestSuite:
                         continue
                     else:
                         tc = currententry.inst.test_name
-                        test_start.send(tc, name=tc.test_name, time=datetime.now())
-                        test_diagnostic.send(tc, message="Prerequisite: {}".format(prereq))
-                        test_incomplete.send(tc, message="Prerequisite did not pass.")
+                        test_start.send(tc, name=tc.test_name, time=datetime.now())  # noqa
+                        test_diagnostic.send(tc, message="Prerequisite: {}".format(prereq))  # noqa
+                        test_incomplete.send(tc, message="Prerequisite did not pass.")  # noqa
                         test_end.send(tc, time=datetime.now())
                         currententry.result = TestResult.INCOMPLETE
                         return False
-        return True # No prerequisite, or prereq did pass.
+        return True  # No prerequisite, or prereq did pass.
 
     def _run_tests(self):
         for i, entry in enumerate(self._tests):
@@ -962,7 +985,8 @@ class TestSuite:
                         self.info("Test suite aborted by user.")
                         break
             except TestSuiteAbort as err:
-                self.info("Suite aborted by test {} ({}).".format(entry.test_name, err))
+                self.info("Suite aborted by test {} ({}).".format(
+                    entry.test_name, err))
                 break
 
     def _finalize(self):
@@ -971,21 +995,23 @@ class TestSuite:
         except KeyboardInterrupt:
             if self._nested:
                 raise TestSuiteAbort(
-                        "Suite {!r} aborted by user in finalize().".format(self.test_name))
+                    "Suite {!r} aborted by user in finalize().".format(
+                        self.test_name))
             else:
                 self.info("Suite aborted by user in finalize().")
         except:
             ex, val, tb = sys.exc_info()
             if self._debug:
-                print() # ensure debugger prompts starts on new line.
+                print()  # ensure debugger prompts starts on new line.
                 debugger.post_mortem(tb, ex, val)
             self.info("Suite failed to finalize: {} ({})".format(ex, val))
             if self._nested:
                 raise TestSuiteAbort(
-                        "subordinate suite {!r} failed to finalize.".format(self.test_name))
-        resultset = {TestResult.PASSED:0, TestResult.FAILED:0,
-                TestResult.EXPECTED_FAIL:0, TestResult.INCOMPLETE:0,
-                TestResult.NA:0}
+                    "subordinate suite {!r} failed to finalize.".format(
+                        self.test_name))
+        resultset = {TestResult.PASSED: 0, TestResult.FAILED: 0,
+                     TestResult.EXPECTED_FAIL: 0, TestResult.INCOMPLETE: 0,
+                     TestResult.NA: 0}
         # Aggregate result for suite.
         for entry in self._tests:
             resultset[entry.result] += 1
@@ -1006,7 +1032,7 @@ class TestSuite:
         """
         suite_info.send(self, message=msg)
 
-    ### overrideable interface. ###
+    # Overrideable interface.
     def initialize(self):
         """initialize phase handler for suite-level initialization.
 
@@ -1026,7 +1052,9 @@ class TestSuite:
         """
         pass
 
-Test = TestCase # backwards compatibility
+
+Test = TestCase  # backwards compatibility
+
 
 class UseCase:
     """UseCase is a runable object that dynamically creates a test suite.
@@ -1041,12 +1069,11 @@ class UseCase:
     of tests depending on the runtime configuration.
     """
     @staticmethod
-    def get_suite(config, environment, suiteclass=TestSuite):
+    def get_suite(config, environment, ui, suiteclass=TestSuite):
         return suiteclass(config, environment, name=suiteclass.__name__)
 
     @classmethod
-    def run(cls, config, environment):
-        suite = cls.get_suite(config, environment)
+    def run(cls, config, environment, ui):
+        suite = cls.get_suite(config, environment, ui)
         suite.run()
         return suite.result
-
