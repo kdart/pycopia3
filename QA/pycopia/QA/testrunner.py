@@ -32,10 +32,12 @@ Class object that is a TestCase:
 """
 
 import os
+import sys
 from datetime import datetime
 
 from pycopia import logging
 from pycopia import reports
+from pycopia import debugger
 
 from . import core
 from . import config
@@ -50,11 +52,12 @@ ModuleType = type(os)
 
 # Test case methods inserted into plain modules for plain module test cases.
 _EXPORTED_METHODS = ['abort', 'assertApproximatelyEqual', 'assertEqual',
-    'assertFailed', 'assertFalse', 'assertGreaterThan',
-    'assertGreaterThanOrEqual', 'assertLessThan', 'assertLessThanOrEqual',
-    'assertNotEqual', 'assertPassed', 'assertRaises', 'assertTrue',
-    'diagnostic', 'expectedfail', 'failed', 'get_filename', 'incomplete',
-    'info', 'open_data_file', 'open_log_file', 'passed', ]
+                     'assertFailed', 'assertFalse', 'assertGreaterThan',
+                     'assertGreaterThanOrEqual', 'assertLessThan',
+                     'assertLessThanOrEqual', 'assertNotEqual', 'assertPassed',
+                     'assertRaises', 'assertTrue', 'diagnostic',
+                     'expectedfail', 'failed', 'get_filename', 'incomplete',
+                     'info', 'open_data_file', 'open_log_file', 'passed', ]
 
 
 class TestRunner:
@@ -69,7 +72,7 @@ class TestRunner:
         if cf.flags.DEBUG:
             logging.loglevel_debug()
         else:
-            logging.loglevel_warning()
+            logging.loglevel_info()
 
     def run(self, objects, ui):
         """Main entry to run a list of runnable objects."""
@@ -79,17 +82,6 @@ class TestRunner:
         self.finalize()
         return rv
 
-    def run_object(self, obj):
-        """Run a test object (object with run() function or method).
-
-        Arguments:
-            obj:
-                A Python test object. This object must have a `run()` function
-                or method that takes a configuration object and environment as
-                its parameters.
-
-        """
-
     def run_objects(self, objects):
         """Invoke the `run` method on a list of mixed runnable objects.
 
@@ -97,12 +89,18 @@ class TestRunner:
             objects:
                 A list of runnable objects. A runnable object is basically
                 something that has a callable named "run" that takes a
-                configuration object as a parameter.
+                configuration, environment, and UI object as a parameter.
+
+                A special module with an "execute" function can also be run.
 
         May raise TestRunnerError if an object is not runnable by this test
         runner.
+
+        Bare TestCase classes are grouped together and run in a temporary
+        TestSuite.
         """
         rv = TestResult.INCOMPLETE
+        results = []
         testcases = []
         for obj in objects:
             objecttype = type(obj)
@@ -114,34 +112,87 @@ class TestRunner:
             elif isinstance(obj, core.TestSuite):
                 obj.run()
                 rv = obj.result
-            elif objecttype is ModuleType and hasattr(obj, "execute"):
-                tcinst = core.TestCase(self.config, self.environment, self._ui)
-                for name in _EXPORTED_METHODS:
-                    value = getattr(tcinst, name)
-                    setattr(obj, name, value)
-                obj.config = self.config
-                obj.environment = self.environment
-                obj.UI = self._ui
-                obj.print = tcinst.info
-                obj.input = self._ui.user_input
-                try:
-                    rv = obj.execute()
-                finally:
-                    del obj.config
-                    del obj.environment
-                    del obj.UI
-                    del obj.print
-                    del obj.input
-                    for name in _EXPORTED_METHODS:
-                        delattr(obj, name)
+            elif objecttype is ModuleType:
+                if hasattr(obj, "execute"):
+                    rv = self._run_module_hack(obj)
+                elif hasattr(obj, "run"):
+                    rv = self._run_module(obj)
             else:
                 logging.warn("{!r} is not a runnable object.".format(obj))
+            results.append(rv)
+        # Run any accumulated bare test classes.
         if testcases:
             if len(testcases) > 1:
                 rv = self.run_tests(testcases)
             else:
                 rv = self.run_test(testcases[0])
+            results.append(rv)
+        return _aggregate_returned_results(results)
+
+    def _run_module_hack(self, module_with_exec):
+        tcinst = core.TestCase(self.config, self.environment, self._ui)
+        tcinst.set_test_options()
+        tcinst.test_name = module_with_exec.__name__
+        # Pull out essential functions.
+        execute = getattr(module_with_exec, "execute")
+        initialize = getattr(module_with_exec, "initialize", None)
+        finalize = getattr(module_with_exec, "finalize", None)
+        # Make functions bound methods of temporary TestCase instance.
+        MethodType = type(tcinst.execute)
+        def wrap_execute(s):
+            return execute()
+        setattr(tcinst, "execute", MethodType(wrap_execute, tcinst))
+        if initialize is not None:
+            def wrap_initialize(s):
+                return initialize()
+            setattr(tcinst, "initialize", MethodType(wrap_initialize, tcinst))
+        if finalize is not None:
+            def wrap_finalize(s):
+                return finalize()
+            setattr(tcinst, "finalize", MethodType(wrap_finalize, tcinst))
+        # Put TestCase instance methods into module namespace.
+        # This enables execute function to call disposition methods as globals.
+        for name in _EXPORTED_METHODS:
+            value = getattr(tcinst, name)
+            setattr(module_with_exec, name, value)
+        module_with_exec.config = self.config
+        module_with_exec.environment = self.environment
+        module_with_exec.UI = self._ui
+        module_with_exec.print = tcinst.info
+        module_with_exec.input = self._ui.user_input
+        # Run inside a TestEntry, which handles result reporting.
+        try:
+            entry = core.TestEntry(tcinst)
+            rv = entry.run()
+        except:
+            if self.config.flags.DEBUG:
+                ex, val, tb = sys.exc_info()
+                debugger.post_mortem(tb, ex, val)
+            else:
+                logging.exception_error(module_with_exec.__name__)
+            rv = TestResult.INCOMPLETE
+        # Clean up
+        del module_with_exec.config
+        del module_with_exec.environment
+        del module_with_exec.UI
+        del module_with_exec.print
+        del module_with_exec.input
+        for name in _EXPORTED_METHODS:
+            delattr(module_with_exec, name)
         return rv
+
+    def _run_module(self, module_with_run):
+        try:
+            rv = module_with_run.run(self.config, self.environment, self._ui)
+        except:
+            if self.config.flags.DEBUG:
+                ex, val, tb = sys.exc_info()
+                debugger.post_mortem(tb, ex, val)
+            else:
+                logging.exception_error(module_with_run.__name__)
+            return TestResult.INCOMPLETE
+        else:
+            return rv
 
     def run_test(self, testclass, *args, **kwargs):
         """Run a test single test class with arguments.
@@ -259,9 +310,20 @@ class TestRunner:
             os.rmdir(cf.resultsdir)
 
 
-def get_module_version(mod):
-    """Get a version if present, else "unknown"."""
-    try:
-        return mod.__version__[1:-1].split(":")[-1].strip()
-    except (AttributeError, IndexError):
-        return "unknown"
+def _aggregate_returned_results(resultlist):
+    resultset = {TestResult.PASSED: 0, TestResult.FAILED: 0,
+                 TestResult.EXPECTED_FAIL: 0, TestResult.INCOMPLETE: 0,
+                 TestResult.NA: 0, None: 0}
+    for res in resultlist:
+        resultset[res] += 1
+    # Fail if any fail, else incomplete if any incomplete, pass if all pass.
+    if resultset[TestResult.FAILED] > 0:
+        return TestResult.FAILED
+    elif resultset[TestResult.INCOMPLETE] > 0:
+        return TestResult.INCOMPLETE
+    elif resultset[None] > 0:
+        return TestResult.NA
+    elif resultset[TestResult.PASSED] > 0:
+        return TestResult.PASSED
+    else:
+        return TestResult.INCOMPLETE

@@ -27,7 +27,6 @@ from pycopia import UI
 from pycopia.QA import testrunner
 
 
-
 def choose_tests(ui):
     try:
         import testcases
@@ -37,7 +36,9 @@ def choose_tests(ui):
     import pkgutil
     from pycopia.QA import core
 
-    ui.printf("Select a %gUseCase%N object, or single %yTestCase%N object.")
+    ui.printf("Select a %gUseCase%N object, a single %yTestCase%N object, "
+              "a module with a %mrun%N callable, or a module with "
+              "an %cexecute%N style callable.")
 
     modnames = []
     runnables = []
@@ -45,7 +46,8 @@ def choose_tests(ui):
             testcases.__path__, testcases.__name__ + '.'):
         if ispkg:
             continue
-        modnames.append(name)
+        if "._" not in name:
+            modnames.append(name)
 
     modnames.sort()
     for modname in modnames:
@@ -68,6 +70,14 @@ def choose_tests(ui):
                 if issubclass(obj, core.TestCase):
                     runnables.append(FormatWrapper(ui, modname, obj.__name__,
                                                    "%U.%y%O%N"))
+            elif callable(obj):
+                if attrname == "run":
+                    runnables.append(FormatWrapper(ui, modname, None,
+                                                   "%m%U%N"))
+                elif attrname == "execute":
+                    runnables.append(FormatWrapper(ui, modname, None,
+                                                   "%c%U%N"))
+
     return [o.fullname for o in ui.choose_multiple(runnables,
             prompt="Select tests")]
 
@@ -119,7 +129,8 @@ Invoke a test or test suite from a shell.
 
 Usage:
 
-    %s [-h?dDviIr] [-c|-f <configfile>] [-n <string>] arg...
+    {name} [-h?dDvI] [-c|-f <configfile>] [-m <message>] [-e <environment>]
+        [-r <reportname>] testargs...
 
     Where the arguments are test suite or test case module path names. If none
     are supplied a menu is presented.
@@ -127,15 +138,12 @@ Usage:
     Options:
 
         -h -- Print help text and return.
-        -d -- Turn on debugging for tests.
-        -D -- Turn on debugging for framework.
-        -v -- Increase verbosity.
+        -d -- Turn on automatic debugging for test cases.
+        -D -- Turn on automatic debugging for framework itself.
+        -v -- Increase verbosity (This currently doesn't do anything).
         -I -- Set flag to skip interactive tests.
-        -n <string> -- Add a comment to the test report.
+        -m <message> -- Add a comment to the test report.
         -c or -f <file> -- Merge in extra configuration file.
-        -R -- Report on test case or test suite specified. Don't run it.
-              Without arguments show the possible report and environment
-              names.
         -e <environmentname>  -- Name of Environment to use for this run.
         -r <reportname>  -- Name of report to use for this run.
 
@@ -161,14 +169,14 @@ class TestRunnerInterface:
         Invoke the test runner by calling it.
         """
         cf = self.runner.config
-        cf.flags.REPORT = False
         cf.flags.INTERACTIVE = True
         cf.flags.DEBUG = 0
         cf.flags.VERBOSE = 0
-        optlist, longopts, args = getopt.getopt(argv[1:], "h?dDvIRc:f:n:e:r:")
+        optlist, longopts, args = getopt.getopt(argv[1:], "h?dDvIc:f:m:e:r:")
         for opt, optarg in optlist:
             if opt in ("-h", "-?"):
-                print((TestRunnerInterfaceDoc % (os.path.basename(argv[0]),)))
+                print(TestRunnerInterfaceDoc.format(
+                    name=os.path.basename(argv[0])))
                 return
             elif opt == "-d":
                 cf.flags.DEBUG += 1
@@ -180,10 +188,8 @@ class TestRunnerInterface:
                 cf.flags.INTERACTIVE = False
             elif opt == "-c" or opt == "-f":
                 cf.mergefile(optarg)
-            elif opt == "-n":
+            elif opt == "-m":
                 cf.comment = optarg
-            elif opt == "-R":
-                cf.flags.REPORT = True
             elif opt == "-r":
                 cf.reportname = optarg
             elif opt == "-e":

@@ -41,8 +41,8 @@ Example::
 
     class MyCase(UseCase):
 
-        def get_suite(config, environment):
-            suite = TestSuite(config, environment, name="MySuite")
+        def get_suite(config, environment, ui):
+            suite = TestSuite(config, environment, ui, name="MySuite")
             suite.add_test(MyTestSubclass)
             ...
             return suite
@@ -103,7 +103,7 @@ class TestCase:
     OPTIONS = TestOptions({})
     PREREQUISITES = []
 
-    def __init__(self, config, environment, ui):
+    def __init__(self, config, environment=None, ui=None):
         cl = self.__class__
         self.test_name = "%s.%s" % (cl.__module__, cl.__name__)
         self.config = config
@@ -732,14 +732,14 @@ class TestSuite:
     tests pass the suite is passed also. If any fail, the suite is failed. If
     any are incomplete the suite is incomplete.
     """
-    def __init__(self, cf, environment, ui, nested=0, name=None):
-        self.config = cf
+    def __init__(self, config, environment=None, ui=None, nested=0, name=None):
+        self.config = config
         self.environment = environment
         self.ui = ui
         cl = self.__class__
         self.test_name = name or "{}.{}".format(cl.__module__, cl.__name__)
         self.result = TestResult.NA
-        self._debug = cf.flags.DEBUG
+        self._debug = config.flags.DEBUG
         self._tests = []
         self._testset = set()
         self._multitestset = set()
