@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block header %}
+    <h1>QA Control Center</h1>
+    <p class="important">
+      Manage test cases and lab equipment.
+    </p>
+{% endblock %}
+{% block main %}
+<ul>
+{% for item in items %}
+  <li>{{ item }}</li>
+{% endfor %}
+</ul>
+{% endblock %}
+
+{% block footer %}
+{{ super() }}
+{% endblock %}
+
+{% block bottom %}
+{{ super() }}
+{% endblock %}
