@@ -499,7 +499,7 @@ def init_database(argv):
         url = argv[1]
     except IndexError:
         from pycopia import basicconfig
-        cf = basicconfig.get_config("database.conf")
+        cf = basicconfig.get_config("database3.conf")
         url = cf["DATABASE_URL"]
     create_db(url)
 

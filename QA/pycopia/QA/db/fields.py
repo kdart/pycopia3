@@ -79,14 +79,14 @@ class EnumField(Field):
     """A field for storing enum.IntEnum objects as an Integer."""
     db_field = 'int'
 
-    def __init__(self, enumclass, help_text=None):
+    def __init__(self, enumclass, default=None, help_text=None):
         assert issubclass(enumclass, enum.IntEnum)
         self._eclass = enumclass
         choices = [(e.value, e.name) for e in enumclass]
         kwargs = {
                 "verbose_name": enumclass.__name__,
                 "choices": choices,
-                "default": choices[0][0],
+                "default": choices[0][0] if default is None else default,
                 "help_text": help_text,
                 }
         super(EnumField, self).__init__(**kwargs)
@@ -100,13 +100,13 @@ class EnumField(Field):
 
 class PickleField(Field):
     """A field for Python values."""
-    db_field = 'blob'
+    db_field = 'blob' # ends up bytea in postgres
 
     def db_value(self, value):
         return None if value is None else pickle.dumps(value)
 
     def python_value(self, value):
-        return None if value is None else pickle.loads(value, encoding="bytes")
+        return None if value is None else pickle.loads(value)
 
 
 class JSONField(Field):
@@ -154,6 +154,7 @@ PostgresqlDatabase.register_fields({
 
 
 SqliteDatabase.register_fields({
+    'datetime_tz': 'DATETIME',
     "inet": "VARCHAR(32)",
     "cidr": "VARCHAR(32)",
     "macaddr": "VARCHAR(32)",

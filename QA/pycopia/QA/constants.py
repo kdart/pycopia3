@@ -40,6 +40,7 @@ Possible test outcomes:
 
 import enum
 
+
 class TestResult(enum.IntEnum):
     PASSED = 0
     FAILED = 1
@@ -53,7 +54,7 @@ class TestResult(enum.IntEnum):
 
     def not_passed(self):
             return self.value in (TestResult.FAILED, TestResult.EXPECTED_FAIL,
-                    TestResult.INCOMPLETE, TestResult.ABORT)
+                                  TestResult.INCOMPLETE, TestResult.ABORT)
 
     def is_failed(self):
         return self.value == TestResult.FAILED
@@ -71,15 +72,6 @@ class ObjectTypes(enum.IntEnum):
     unknown = 4
 
 
-class TestCaseType(enum.IntEnum):
-    """Type of test case, where it fits in the development cycle."""
-    Unit = 0
-    System = 1
-    Integration = 2
-    Regression = 3
-    Performance = 4
-
-
 class ValueType(enum.IntEnum):
     """Basic types that model.AttributeType may have."""
     Object = 0
@@ -89,7 +81,18 @@ class ValueType(enum.IntEnum):
     Boolean = 4
 
 
+class TestCaseType(enum.IntEnum):
+    """Type of test case, where it fits in the development cycle."""
+    Unknown = 0
+    Unit = 1
+    System = 2
+    Integration = 3
+    Regression = 4
+    Performance = 5
+
+
 class Status(enum.IntEnum):
+    """Status of something, like a test case."""
     Unknown = 0
     New = 1
     Reviewed = 2
@@ -100,12 +103,14 @@ class Status(enum.IntEnum):
 
 
 class Priority(enum.IntEnum):
+    """Priority of something, such as a test case."""
     Unknown = 0
     P1 = 1
     P2 = 2
     P3 = 3
     P4 = 4
     P5 = 5
+
 
 class Likelihood(enum.IntEnum):
     """Approximate likelihood that an event may occur."""
@@ -115,6 +120,7 @@ class Likelihood(enum.IntEnum):
     Possible = 3
     Unlikely = 4
     VeryUnlikely = 5
+
 
 class Severity(enum.IntEnum):
     """Severity, or impact that an item may have on something if it did not
@@ -127,4 +133,3 @@ class Severity(enum.IntEnum):
     MinorLossHasReplacement = 4
     MinorLoss = 5
     MajorLoss = 6
-
