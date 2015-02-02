@@ -34,8 +34,10 @@ class ObjectImportError(ImportError):
     """Raised when a test object could not be located."""
 
 
-def Import(modname):
-    """Improved __import__ function that returns fully initialized subpackages."""
+def import_(modname):
+    """Improved __import__ function that returns fully initialized
+    subpackages.
+    """
     try:
         return sys.modules[modname]
     except KeyError:
@@ -72,11 +74,12 @@ def get_object(name):
 
     Arguments:
         name:
-            Python path name of object. Usually a module or a class in a module.
+            Python path name of object. Usually a module or a class in a
+            module.
 
     Returns:
-        An object identified by the given path name. may raise AttributeError
-        or ModuleImportError if name not found.
+        An object identified by the given path name. may raise
+        AttributeError or ModuleImportError if name not found.
     """
     try:
         return sys.modules[name]
@@ -90,13 +93,16 @@ def get_object(name):
             pass
         else:
             return sys.modules[name]
-        mod = get_module(name[:i]) # module name component
+        mod = get_module(name[:i])  # module name component
         try:
-            return getattr(mod, name[i+1:]) # path tail is an object inside module
+            # path tail is an object inside module.
+            return getattr(mod, name[i+1:])
         except AttributeError:
-            raise ObjectImportError("{!r} not found in {!r}.".format(name[i+1:], mod.__name__))
+            raise ObjectImportError(
+                "{!r} not found in {!r}.".format(name[i+1:],
+                                                 mod.__name__))
     else:
-        return get_module(name) # basic module name
+        return get_module(name)  # basic module name
 
 
 def get_class(path):
@@ -106,7 +112,7 @@ def get_class(path):
     name path.
     """
     modulename, classname = path.rsplit(".", 1)
-    mod = Import(modulename)
+    mod = import_(modulename)
     return getattr(mod, classname)
 
 
@@ -144,6 +150,7 @@ def _iter_subpath(packagename):
             break
         yield packagename[:i]
         s = i + 1
+
 
 def _load_package(packagename, basename, searchpath):
     fo, _file, desc = imp.find_module(packagename, searchpath)
@@ -194,4 +201,3 @@ def find_module(modname, path=None):
     except ImportError:
         return None
     return info
-

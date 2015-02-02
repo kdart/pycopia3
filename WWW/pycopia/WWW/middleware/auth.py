@@ -28,7 +28,7 @@ from pycopia import sysrandom as random
 
 
 HOSTNAME = os.uname()[1]
-SESSION_KEY_NAME = b"PYCOPIA"
+SESSION_KEY_NAME = b"PYCOPIA3"
 
 class AuthenticationError(Exception):
     pass

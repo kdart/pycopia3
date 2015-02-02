@@ -1,7 +1,7 @@
 #!/usr/bin/python3.4
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
 #
-#    Copyright (C) 2012- Keith Dart <keith@dartworks.biz>
+#    Copyright (C) 2014- Keith Dart <keith@dartworks.biz>
 #
 #    This library is free software; you can redistribute it and/or
 #    modify it under the terms of the GNU Lesser General Public
@@ -17,95 +17,154 @@
 An SCGI to WSGI gateway.
 """
 
+import sys
 import os
 import socket
+import signal
+import syslog
 import selectors
 
+from pycopia.OS.procutils import run_as
 from pycopia import netstring
+
+
+class Logger:
+    """File-like object for logging."""
+
+    def __init__(self, name, facility):
+        syslog.openlog(name, syslog.LOG_PID,
+                       getattr(syslog, "LOG_" + facility))
+
+    def flush(self):
+        pass  # noop
+
+    def write(self, msg):
+        syslog.syslog(syslog.LOG_ERR, msg.replace("\r\n", " "))
+        return len(msg)
+
+    def writelines(self, seq):
+        for s in seq:
+            self.write(s)
 
 
 class SCGIServer:
 
-    def __init__(self, application, socketpath, environ=None, bind=None, umask=None, debug=False):
+    def __init__(self, application, socketpath, pwent=None,
+                 umask=None, debug=False):
+        signal.signal(signal.SIGCHLD, signal.SIG_IGN)
         self._app = application
+        self._umask = umask
         self._path = socketpath
         self._sock = None
+        self._pwent = pwent
+
+    def __del__(self):
+        self.close()
 
     def open(self):
         if self._sock is None:
             socketpath = self._path
             if os.path.exists(socketpath):
                 os.unlink(socketpath)
+            if self._umask is not None:
+                original_umask = os.umask(self._umask)
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, 0)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.setblocking(False)
             sock.bind(socketpath)
             sock.listen(50)
+            if self._umask is not None:
+                os.umask(original_umask)
             self._sock = sock
         return self._sock
+
+    def close(self):
+        if self._sock is not None:
+            self._sock.close()
+            self._sock = None
 
     def run(self):
         reactor = selectors.DefaultSelector()
         sock = self.open()
-        reactor.register(sock, selectors.EVENT_READ, self._accept)
-
+        reactor.register(sock, selectors.EVENT_READ)
         while True:
             events = reactor.select()
             for key, mask in events:
-                callback = key.data
-                callback(key.fileobj, mask)
+                conn, addr = key.fileobj.accept()
+                conn.set_inheritable(True)
+                pid = os.fork()
+                if pid == 0:
+                    try:
+                        if self._pwent is not None:
+                            run_as(self._pwent)
+                        _handle_request(self._app, conn)
+                    finally:
+                        conn.close()
+                    os._exit(0)
+                else:
+                    conn.close()
 
 
-        new_s, addr = sock.accept()
-        new_s.setblocking(False)
-        rawreq = netstring.decode_stream(new_s)
-        print(repr(rawreq))
+CRLF = b"\r\n"
 
-        new_s.close()
+DEFAULT_ENVIRON = {
+    'wsgi.version': (1,0),
+    'wsgi.multithread': False,
+    'wsgi.multiprocess': True,
+    'wsgi.run_once': True,
+}
 
-    def _accept(self):
-        conn, addr = self._sock.accept()
 
-
-#####################3
-
-sel = selectors.DefaultSelector()
-
-def accept(sock, mask):
-    conn, addr = sock.accept()  # Should be ready
-    print('accepted', conn, 'from', addr)
-    sel.register(conn, selectors.EVENT_READ, read)
-
-def read(conn, mask):
-    data = conn.recv(1000)  # Should be ready
-    if data:
-        print('echoing', repr(data), 'to', conn)
-        conn.send(data)  # Hope it won't block
+def _handle_request(app, conn):
+    env = DEFAULT_ENVIRON.copy()
+    rawheaders = netstring.decode_stream(conn)
+    it = iter(rawheaders.split(b"\0"))
+    for key in it:
+        if not key:
+            break
+        value = next(it)
+        env[key.decode("latin1")] = value.decode("latin1")
+    env['CONTENT_LENGTH'] = int(env["CONTENT_LENGTH"])
+    env['wsgi.input'] = conn.makefile("rb", 32758)
+    env['wsgi.errors'] = Logger(env["SCRIPT_NAME"], "LOCAL7")
+    if env.get('HTTPS', 'off') in ('on', '1'):
+        env['wsgi.url_scheme'] = 'https'
     else:
-        print('closing', conn)
-        sel.unregister(conn)
-        conn.close()
+        env['wsgi.url_scheme'] = 'http'
 
+    def start_response(status, headers, exc_info=None):
+        if exc_info is not None:
+            try:
+                raise exc_info[0](exc_info[1]).with_traceback(exc_info[2])
+            finally:
+                exc_info = None
+        conn.sendall("Status: {}\r\n".format(status).encode("ascii"))
+        for h, v in headers:
+            conn.sendall("{}: {}\r\n".format(h, v).encode("ascii"))
+        conn.sendall(CRLF)
 
+    if env["REQUEST_METHOD"] == "HEAD":
+        app(env, start_response)
+    else:
+        for chunk in app(env, start_response):
+            conn.sendall(chunk)  # app encodes the return
+    env['wsgi.input'].close()
 
-sock = socket.socket()
-sock.bind(('localhost', 1234))
-sock.listen(100)
-sel.register(sock, selectors.EVENT_READ, accept)
-
-while True:
-    events = sel.select()
-    for key, mask in events:
-        callback = key.data
-        callback(key.fileobj, mask)
-
+def test_app(env, start_response):
+    start_response("200 OK", [("Content-Type", "text/plain; charset=utf-8")])
+    return [str(env).encode("utf-8")]
 
 
 def _test(argv):
+    srv = SCGIServer(test_app, "/tmp/testscgi.sock")
+    try:
+        srv.run()
+    except KeyboardInterrupt:
+        pass
 
-    pass
 
 if __name__ == "__main__":
+    from pycopia import autodebug
     import sys
     _test(sys.argv)
 

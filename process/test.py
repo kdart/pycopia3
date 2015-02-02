@@ -18,8 +18,6 @@ import unittest
 from pycopia import proctools
 from pycopia import crontab
 from pycopia import expect
-from pycopia import netcat
-from pycopia import rsynclib
 from pycopia import sshlib
 from pycopia import sudo
 
@@ -50,9 +48,10 @@ class ProcessTests(unittest.TestCase):
 
     def test_lserror(self):
         ls = proctools.spawnpipe("ls /usr/binxx", merge=0)
-        print(ls.read())
-        print("errors:")
-        print(ls.readerr())
+        out = ls.read()
+        errout = ls.readerr()
+        self.assertFalse(bool(out))
+        self.assertTrue(bool(errout))
         ls.close()
         ls.wait()
         es = ls.stat()
@@ -63,7 +62,7 @@ class ProcessTests(unittest.TestCase):
         lines = lspm.readlines()
         self.assertTrue(lines)
         lspm.close()
-        es = lspm.stat()
+        es = lspm.exitstatus
         self.assertTrue(es)
 
 #    def test_pipeline(self):

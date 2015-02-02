@@ -16,15 +16,17 @@
 
 
 """
-Web server using FCGI interface of lighttpd, adapted to WSGI.
-"""
+Web server using SCGI interface of lighttpd, adapted to WSGI.
+This provides a peristent mini-backend over a unix socket. This module
+implements a generic SCGI server to handle part of the web sites path.
 
+Usually started by the websitectl program, using the website module.
+"""
 
 import sys
 import os
 import getopt
-
-from flask import Flask, Config
+import signal
 
 from pycopia import logging
 from pycopia.OS import procfs
@@ -38,14 +40,13 @@ from pycopia.inet.scgi import SCGIServer
 # Factory function creats a server instance with our interface
 # handlers.
 def get_server(config):
-    username = config.get("USERNAME")
+    username = config.get("username")
     if username and os.getuid() == 0:
         pwent = passwd.getpwnam(username)
     else:
         pwent = None
 
-    cf = Config("/etc/pycopia", defaults=config)
-    app = Flask(config["APP"], config=cf, static_url_path="/static")
+    app = module.get_object(config.app_location)
 
     if "MIDDLEWARE" in config:
         for mwtuple in config["MIDDLEWARE"]:
@@ -56,9 +57,8 @@ def get_server(config):
     if config.DEBUG:
         logging.loglevel_debug()
 
-    return SCGIServer(app,
-            bindAddress=config.SOCKETPATH,
-            umask=config.get("SOCKET_UMASK", 0),
+    return SCGIServer(app, config.SOCKETPATH,
+            umask=config.get("SOCKET_UMASK", 0), pwent=pwent,
             debug=config.DEBUG)
 
 
@@ -73,7 +73,6 @@ def check4server(config):
 
 
 def kill_server(config):
-    import signal
     pid = check4server(config)
     if pid:
         os.kill(pid, signal.SIGTERM)
@@ -155,20 +154,20 @@ def run_server(argv):
         daemonize.daemonize(lf, pidfile=pidfile)
     else: # for controller
         with open(pidfile, "w") as fo:
-            fo.write("{}\n"format(os.getpid()))
+            fo.write("{}\n".format(os.getpid()))
 
     server = get_server(config)
     return int(server.run())
 
 
 # Add documentation this way since server is run in optimized mode.
-run_server._doc = """Run the Pycopia FCGI web server.
+run_server._doc = """Run a Pycopia SCGI web mini-server.
 
     %s [-ndk?] [-l <logfile>] [-f <configfile>] [-p <pidfile>]
                  [-s <socketpath>] [<servername>]
 
     <servername> determines the configuration, socket, log names, etc. to
-    use and defines the FCGI server.
+    use and defines the SCGI server.
 
     Options:
          -n = Do NOT become a deamon.

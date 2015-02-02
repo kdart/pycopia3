@@ -38,14 +38,18 @@ The lighttpd build was configured like this:
 import sys
 import os
 import socket
+import traceback
 
 from pycopia import basicconfig
 from pycopia import passwd
+from pycopia import proctools
 from pycopia.OS import procutils
 
 LTCONFIG = "/etc/pycopia/lighttpd/lighttpd.conf"
 # Master site config. controls all virtual host configuration.
 SITE_CONFIG = "/etc/pycopia/website.conf"
+
+LIGHTTPD = procutils.which("lighttpd")
 
 
 def start(config):
@@ -56,7 +60,7 @@ def start(config):
         lf = logfile.ManagedStdio(config.LOGFILENAME)
         daemonize.daemonize(lf, pidfile=config.PIDFILE)
     else:
-        lf = sys.stdout
+        lf = sys.stdout.buffer
         with open(config.PIDFILE, "w") as fo:
             fo.write("{}\n".format(os.getpid()))
     start_proc_manager(config, lf)
@@ -94,32 +98,23 @@ def setup(config):
 
 
 def start_proc_manager(config, logfile):
-    from pycopia import proctools
     from pycopia import asyncio
-
     pm = proctools.get_procmanager()
     libexec = config.get("LIBEXEC", "/usr/libexec/pycopia")
 
     for name, serverlist in list(config.VHOSTS.items()):
         for servername in serverlist:
-            if isinstance(servername, tuple):
-                servername, proto = servername
-            else:
-                proto = "fcgi"
-            print("Starting %s for %s." % (servername, name))
-            if proto == "scgi":
-                cmd = "{}/scgi_server -n {}".format(libexec, servername)
-            else:
-                cmd = "{}/fcgi_server -n {}".format(libexec, servername)
-            p = pm.spawnpipe(cmd, persistent=True, logfile=logfile)
+            print("Starting {} for vhost {}.".format(servername, name))
+            cmd = "{}/scgi_server -n {}".format(libexec, servername)
+            p = pm.spawnprocess(
+                ServerProcess, cmd, persistent=True, logfile=logfile)
             asyncio.poller.register(p)
     if config.USEFRONTEND:
-        lighttpd = procutils.which("lighttpd")
         if asyncio.poller:
-            pm.spawnpipe("{} -D -f {}".format(lighttpd, LTCONFIG),
+            pm.spawnpipe("{} -D -f {}".format(LIGHTTPD, LTCONFIG),
                          persistent=True, logfile=logfile)
         else:  # no servers, just run frontend alone
-            pm.spawnpipe("{} -f {}".format(lighttpd, LTCONFIG))
+            pm.spawnpipe("{} -f {}".format(LIGHTTPD, LTCONFIG))
     try:
         asyncio.poller.loop()
         print("No servers, exited loop.")
@@ -131,6 +126,18 @@ def start_proc_manager(config, logfile):
             proc.killwait()
     if os.path.exists(config.PIDFILE):
         os.unlink(config.PIDFILE)
+
+
+class ServerProcess(proctools.ProcessPipe):
+    def __init__(self, cmd, debug=False, **kwargs):
+        super().__init__(cmd, **kwargs)
+        self._debug = debug
+
+    def exception_handler(self, ex, val, tb):
+        if self._debug:
+            pass
+        else:
+            traceback.print_exception(ex, val, tb, file=self._log)
 
 
 def stop(config):
@@ -157,25 +164,34 @@ def robots(config):
     for vhost, scripts in list(config.VHOSTS.items()):
         rname = os.path.join(config.SITEROOT, vhost, "htdocs", "robots.txt")
         if os.path.exists(rname):
-            continue
-        fo = open(rname, "w")
-        fo.write(_get_robots_txt(scripts))
-        fo.close()
+            if config.FORCE:
+                bakname = rname + ".bak"
+                if os.path.exists(bakname):
+                    os.unlink(bakname)
+                os.rename(rname, bakname)
+            else:
+                continue
+        with open(rname, "w") as fo:
+            fo.write(_get_robots_txt(scripts))
         os.chown(rname, user.uid, user.gid)
 
 
 def check(config):
     "Check the lighttpd configuration."
-    from pycopia import proctools
     pm = proctools.get_procmanager()
-    lighttpd = procutils.which("lighttpd")
-    proc = pm.spawnpipe("%s -p -f %s" % (lighttpd, LTCONFIG))
+    cmd = "{} -p -f {}".format(LIGHTTPD, LTCONFIG)
+    print("Running:", cmd)
+    proc = pm.spawnpipe(cmd)
     out = proc.read()
     es = proc.wait()
     if es:
-        print(out)
+        sys.stdout.buffer.write(out)
     else:
-        print("Error: %s" % (es,))
+        from pycopia.WWW import serverconfig
+        print("ERROR: {}".format(es))
+        sys.stdout.buffer.write(out)
+        print("config_server output:")
+        serverconfig.config_lighttpd(["config_lighttpd"], sys.stdout)
 
 
 def _get_robots_txt(scripts):
@@ -195,6 +211,7 @@ Options:
  -? or -h   Show this help.
  -l  override log file name.
  -p  override pid file name.
+ -F  force actions, such as overwriting files.
  -n  do NOT become a daemon when starting.
  -d  Enable automatic debugging.
  -N  do NOT start the web server front end (lighttpd).
@@ -215,13 +232,14 @@ def main(argv):
     import getopt
     daemonize = True
     frontend = True
+    force = False
     dname = None
     servername = os.path.basename(argv[0])
     logfilename = "/var/log/%s.log" % (servername,)
     pidfilename = "/var/run/%s.pid" % (servername,)
     cffile = SITE_CONFIG
     try:
-        optlist, args = getopt.getopt(argv[1:], "?hdnNl:p:f:D:")
+        optlist, args = getopt.getopt(argv[1:], "?hdnNFl:p:f:D:")
     except getopt.GetoptError:
         print(_doc % (servername,))
         return
@@ -240,6 +258,8 @@ def main(argv):
             dname = optarg
         elif opt == "-f":
             cffile = optarg
+        elif opt == "-F":
+            force = True
         elif opt == "-p":
             pidfilename = optarg
         elif opt == "-d":
@@ -253,6 +273,7 @@ def main(argv):
     config.LOGFILENAME = logfilename
     config.PIDFILE = pidfilename
     config.DAEMON = daemonize
+    config.FORCE = force
     config.USEFRONTEND = frontend
     config.ARGV = args
 

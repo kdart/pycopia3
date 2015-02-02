@@ -14,7 +14,8 @@
 #    Lesser General Public License for more details.
 
 """
-Module to help with web server configuration.
+Module to help with web server configuration. This module is run by lighttpd
+itself to get additional configuration.
 
 In a lighttpd.conf file, add this:
 
@@ -44,10 +45,7 @@ $SERVER["socket"] == ":{sslport}" {{
   server.document-root = "/var/www/localhost/htdocs-secure"
 }}
 """  # noqa
-    # SCGI support
     SCGI_HEAD = "  scgi.server = ("
-    # FCGI support
-    FCGI_HEAD = "  fcgi.server = ("
     CGI_TEMPLATE = """
     "/{name}" => (
         (
@@ -83,9 +81,8 @@ $HTTP["host"] == "{hostname}" {{
         self._parts = []
         self._myhostname = os.uname()[1].split(".")[0]
 
-    def add_global(self, **kwargs):
-        for name, value in kwargs.items():
-            self._parts.append(self.GLOBAL.format(name=name, value=value))
+    def add_global(self, name, value):
+        self._parts.append(self.GLOBAL.format(name=name, value=value))
 
     def add_port(self, port):
         self._parts.append(self.PORT.format(port=port))
@@ -101,15 +98,8 @@ $HTTP["host"] == "{hostname}" {{
         self._parts.append(self.VHOST_TEMPLATE.format(hostname=hostname,
                                                       SSL=ssl))
         if servers:
+            self._parts.append(self.SCGI_HEAD)
             for server in servers:
-                if isinstance(server, tuple):
-                    server, proto = server
-                else:
-                    proto = "fcgi"
-                if proto == "scgi":
-                    self._parts.append(self.SCGI_HEAD)
-                else:
-                    self._parts.append(self.FCGI_HEAD)
                 self._parts.append(self.CGI_TEMPLATE.format(
                     name=server,
                     socketpath="/tmp/{}.sock".format(server))
@@ -152,6 +142,7 @@ def config_lighttpd(argv, filelike):
         ssl_used = (bool(sslport) and
                     os.path.exists("/etc/pycopia/ssl/{}.crt".format(name)))
         ltc.add_vhost(name, serverlist, ssl_used)
+    ltc.add_global("scgi.debug", "1")
     ltc.emit(filelike)
 
 if __name__ == '__main__':

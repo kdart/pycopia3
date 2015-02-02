@@ -80,7 +80,7 @@ class Process:
                 tty = os.ttyname(self.fileno())
             except:
                 tty = "?"
-            return "{:6d} {:-7s} ({}) {}".format(st.pid, tty, st.statestr(),
+            return "{:6d} {:7s} ({}) {}".format(st.pid, tty, st.statestr(),
                                                  self.cmdline)
 
     def __int__(self):
@@ -344,21 +344,19 @@ class ProcessPipe(Process):
     """
     def __init__(self, cmdline, logfile=None,  env=None, callback=None,
                  merge=1, pwent=None, async=False, devnull=None, _pgid=0):
-        Process.__init__(self, cmdline, logfile, callback, async)
-
+        super().__init__(cmdline, logfile, callback, async)
         if env:
             self.environment = env
         cmd = split_command_line(self.cmdline)
         # now, fork the child connected by pipes
         p2cread, self._p_stdin = os.pipe()
+        os.set_inheritable(p2cread, True)
         self._p_stdout, c2pwrite = os.pipe()
-        close_on_exec(self._p_stdin)
-        close_on_exec(self._p_stdout)
+        os.set_inheritable(c2pwrite, True)
         if merge:
             self._stderr, c2perr = None, None
         else:
             self._stderr, c2perr = os.pipe()
-            close_on_exec(self._stderr)
         self.childpid = os.fork()
         self.childpid2 = None  # for compatibility with pipeline
         if self.childpid == 0:
@@ -367,17 +365,13 @@ class ProcessPipe(Process):
             os.close(0)
             os.close(1)
             os.close(2)
-            if os.dup(p2cread) != 0:
-                os._exit(127)
+            os.dup2(p2cread, 0)
             os.close(p2cread)
-            if os.dup(c2pwrite) != 1:
-                os._exit(127)
+            os.dup2(c2pwrite, 1)
             if merge:
-                if os.dup(c2pwrite) != 2:
-                    os._exit(127)
+                os.dup2(c2pwrite, 2)
             else:
-                if os.dup(c2perr) != 2:
-                    os._exit(127)
+                os.dup2(c2perr, 2)
                 os.close(c2perr)
             os.close(c2pwrite)
             try:
@@ -482,7 +476,7 @@ class ProcessPty(Process):
     """
     def __init__(self, cmdline, logfile=None, env=None, callback=None,
                  merge=1, pwent=None, async=False, devnull=False, _pgid=0):
-        Process.__init__(self, cmdline, logfile, callback, async)
+        super().__init__(cmdline, logfile, callback, async)
         if env:
             self.environment = env
         cmd = split_command_line(self.cmdline)
@@ -604,7 +598,7 @@ class ProcessPty(Process):
 class CoProcessPty(ProcessPty):
     def __init__(self, method, logfile=None, env=None,
                  callback=None, async=False, pwent=None, _pgid=0):
-        Process.__init__(self, "python: %s" % (method.__name__,),
+        super().__init__("python: %s" % (method.__name__,),
                          logfile, callback, async)
         pid, self._fd = os.forkpty()
         self.childpid = pid
@@ -616,15 +610,18 @@ class CoProcessPty(ProcessPty):
 class CoProcessPipe(ProcessPipe):
     def __init__(self, method, logfile=None, env=None,
                  callback=None, merge=False, async=False, pwent=None, _pgid=0):
-        Process.__init__(self, "python <=> %s" % (method.__name__,), logfile,
+        super().__init__("python <=> %s" % (method.__name__,), logfile,
                          callback, async)
 
         p2cread, self._p_stdin = os.pipe()
         self._p_stdout, c2pwrite = os.pipe()
+        os.set_inheritable(p2cread, True)
+        os.set_inheritable(c2pwrite, True)
         if merge:
             self._stderr, c2perr = None, None
         else:
             self._stderr, c2perr = os.pipe()
+            os.set_inheritable(c2perr, True)
         self.childpid = os.fork()
         self.childpid2 = None
         if self.childpid == 0:
@@ -632,17 +629,12 @@ class CoProcessPipe(ProcessPipe):
             os.close(0)
             os.close(1)
             os.close(2)
-            if os.dup(p2cread) != 0:
-                os._exit(127)
-            if os.dup(c2pwrite) != 1:
-                os._exit(127)
+            os.dup2(p2cread, 0)
+            os.dup2(c2pwrite, 1)
             if merge:
-                if os.dup(c2pwrite) != 2:
-                    os._exit(127)
+                os.dup2(c2pwrite, 2)
             else:
-                if os.dup(c2perr) != 2:
-                    os._exit(127)
-
+                os.dup2(c2perr, 2)
             if pwent:
                 run_as(pwent)
 
@@ -655,7 +647,7 @@ class CoProcessPipe(ProcessPipe):
 # simply forks this python process
 class SubProcess(Process):
     def __init__(self, pwent=None, _pgid=0):
-        Process.__init__(self, sys.argv[0])
+        super().__init__(sys.argv[0])
         pid = os.fork()
         if pid == 0:
             sys.excepthook = sys.__excepthook__  # remove any debugger hook
@@ -674,7 +666,7 @@ class ProcessPipeline(ProcessPipe):
         [cmdline1, cmdline2] = cmdline.split("|")
         if env:
             self.environment = env
-        Process.__init__(self, cmdline2, logfile, callback, async)
+        super().__init__(cmdline2, logfile, callback, async)
         self._stderr = None
 
         cmd1 = split_command_line(cmdline1)
@@ -960,8 +952,9 @@ to get the instance.  """
     # this is the SIGCHLD signal handler
     def _child_handler(self, sig, stack):
         pid, sts = os.waitpid(-1, os.WNOHANG)
-        proc = self._procs[pid]
-        self._proc_status(proc, sts)
+        proc = self._procs.get(pid)
+        if proc is not None:
+            self._proc_status(proc, sts)
         signal.signal(SIGCHLD, self._child_handler)
         signal.siginterrupt(SIGCHLD, False)
 
