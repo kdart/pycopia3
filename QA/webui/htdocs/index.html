@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html class="no-js">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>QA Control Center</title>
+        <meta name="description" content="QA">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/static/css/jquery-ui.min.css">
+        <link rel="stylesheet" href="/static/css/jquery-ui.structure.min.css">
+        <link rel="stylesheet" href="/static/css/jquery-ui.theme.min.css">
+        <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+        <link rel="stylesheet" href="/static/css/main.css">
+        <script src="/static/js/jquery.min.js"></script>
+        <script src="/static/js//modernizr.min.js"></script>
+        <script src="/static/js/jquery-ui.min.js"></script>
+        <script src="/static/js/login.js" type="text/javascript" charset="utf-8"></script>
+    </head>
+    <body>
+    <nav class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="#">QA Control Center</a>
+        </div>
+        <div id="navbar" class="navbar-collapse collapse">
+          <form name="loginform" class="navbar-form navbar-right" role="form" onsubmit="return login.submitForm();" enctype="application/x-www-form-urlencoded">
+            <div class="form-group">
+              <input type="text" placeholder="Account" class="form-control">
+            </div>
+            <div class="form-group">
+              <input type="password" placeholder="Password" class="form-control">
+            </div>
+            <input type="hidden" name="key" id="id_key" value="{key}" />
+            <button type="submit" class="btn btn-success">Sign in</button>
+          </form>
+        </div>
+      </div>
+    </nav>
+    <div class="container">
+      <div class="row">
+        <div class="col-md-4">
+          <h2>CI Status</h2>
+          <p>Continuous integration status goes here.</p>
+          <p><a class="btn btn-default" href="/status" role="button">View details &raquo;</a></p>
+        </div>
+        <div class="col-md-4">
+          <h2>Test Cases</h2>
+          <p>Latest test cases results. </p>
+          <p><a class="btn btn-default" href="/testcases" role="button">View details &raquo;</a></p>
+       </div>
+        <div class="col-md-4">
+          <h2>Lab Status</h2>
+          <p>Lab status and equipment goes here.</p>
+          <p><a class="btn btn-default" href="/lab" role="button">View details &raquo;</a></p>
+        </div>
+      </div>
+      <hr>
+      <footer>
+      </footer>
+    </div>
+    <script src="/static/js/plugins.js"></script>
+    <script src="/static/js/main.js"></script>
+    </body>
+</html>

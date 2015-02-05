@@ -1,0 +1,15 @@
+# humanstxt.org/
+# The humans responsible & technology colophon
+
+# TEAM
+
+    Keith Dart
+
+# THANKS
+
+    Thales e-Security
+
+# TECHNOLOGY COLOPHON
+
+    CSS3, HTML5
+    Python, Lighttpd, AngularJS, jQuery, Modernizr, Normalize.css
