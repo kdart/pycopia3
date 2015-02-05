@@ -28,15 +28,16 @@ from flask.ext.restful import (reqparse, Api, Resource, fields, marshal_with)
 
 @app.route("/")
 def index():
-    cssurl = url_for('static', filename='style.css')
+    cssurl = url_for('static', filename='qadbstyle.css')
     menuitems = [
-        "Run Tests",
-        "Manage Config",
-        "Manage Environments",
-        "Manage Lab Equipment",
-        "Test Run Reports",
+            "EquipmentModel",
+            "Equipment",
+            "Environments",
+            "TestJob",
         ]
-    return render_template("index.html", mainstyle=cssurl, items=menuitems)
+    return render_template("index.html", apptitle="Database Editor",
+                           pagetitle="Database Editor Home",
+                           mainstyle=cssurl, menu=menuitems)
 
 
 @app.route('/login', methods=['GET', 'POST'])

@@ -3,12 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-  <meta name="description" content="Pycopia DB admin">
-  <script src="/static/modernizr-1.7.min.js"></script>
-  <script src="/static/respond.min.js"></script>
+  <meta name="description" content="Pycopia UI">
+  <script src="/static/js/jquery.min.js"></script>
+  <script src="/static/js//modernizr.min.js"></script>
+  <script src="/static/js/jquery-ui.min.js"></script>
+  {% if pagescript %}
+  <script src="{{pagescript}}"></script>
+  {% endif %}
 {% block head %}
     <link rel="stylesheet" href="{{mainstyle}}">
-    <title>{% block title %}{% endblock %} - QA Control Center</title>
+    <title>
+    {{ apptitle|default('QA Control Center') }} - {{ pagetitle|default('Home') }}
+    </title>
 {% endblock %}
 </head>
 <body>
@@ -29,5 +35,8 @@
 {% block bottom %}
 {% endblock %}
 </div>
+{% if endscript %}
+<script src="{{endscript}}"></script>
+{% endif %}
 </body>
 </html>

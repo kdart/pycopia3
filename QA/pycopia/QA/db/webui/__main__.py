@@ -12,7 +12,8 @@
 #    Lesser General Public License for more details.
 
 """
-WebUI main application. Used only for testing.
+WebUI main application. Used only for testing. Usually these apps are run from
+the web server framework (pycopia.WWW).
 """
 
 from pycopia.QA.db.webui import app

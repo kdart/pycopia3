@@ -14,14 +14,12 @@
 #    Lesser General Public License for more details.
 
 """
-Web UI for QA framework.
+Dynamic pages for the web UI for QA framework.
 """
 
-# This import pattern is what Flask requires. Don't blame me.
+# This import pattern is what Flask requires.
 
 from flask import Flask
-from flask.ext.restful import (reqparse, abort, Api, Resource, fields,
-        marshal_with)
 
 app = Flask(__name__)
 
