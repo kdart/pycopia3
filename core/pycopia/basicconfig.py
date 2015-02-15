@@ -23,7 +23,6 @@ import sys, os
 import warnings
 
 
-
 def execfile(fn, glbl, loc):
     exec(open(fn).read(), glbl, loc)
 
@@ -31,18 +30,23 @@ def execfile(fn, glbl, loc):
 class BasicConfigError(Exception):
     pass
 
+
 class ConfigLockError(BasicConfigError):
     pass
+
 
 class ConfigReadError(BasicConfigError):
     pass
 
 
 class ConfigHolder(dict):
-    """ConfigHolder() Holds named configuration information. For convenience,
-it maps attribute access to the real dictionary. This object is lockable, use
-the 'lock' and 'unlock' methods to set its state. If locked, new keys or
-attributes cannot be added, but existing ones may be changed."""
+    """Holds named configuration information.
+
+    For convenience, it maps attribute access to the real dictionary. This
+    object is lockable, use the 'lock' and 'unlock' methods to set its state. If
+    locked, new keys or attributes cannot be added, but existing ones may be
+    changed.
+    """
     def __init__(self, init={}, name=None):
         name = name or self.__class__.__name__.lower()
         dict.__init__(self, init)
@@ -96,27 +100,28 @@ attributes cannot be added, but existing ones may be changed."""
         return ch
 
     def add_section(self, name):
-        self.name = SECTION(name)
+        self.name = Section(name)
 
 
-class SECTION(ConfigHolder):
+class Section(ConfigHolder):
     def __init__(self, name):
-        super(SECTION, self).__init__(name=name)
+        super(Section, self).__init__(name=name)
 
     def __repr__(self):
-        return super(SECTION, self).__str__()
+        return super(Section, self).__str__()
 
 
 class BasicConfig(ConfigHolder):
 
-    def mergefile(self, filename, globalspace=None):
+    def mergefile(self, filename):
         """Merge in a Python syntax configuration file that should assign
         global variables that become keys in the configuration. Returns
-        True if file read OK, False otherwise."""
+        True if file read OK, False otherwise.
+        """
         if os.path.isfile(filename):
-            gb = globalspace or {} # temporary global namespace for config files.
-            gb["SECTION"] = SECTION
-            gb["sys"] = sys # in case config stuff needs these.
+            gb = {}  # Temporary global namespace for config files.
+            gb["Section"] = Section
+            gb["sys"] = sys  # In case config stuff needs these.
             gb["os"] = os
             def include(fname):
                 execfile(get_pathname(fname), gb, self)
@@ -125,7 +130,9 @@ class BasicConfig(ConfigHolder):
                 execfile(filename, gb, self)
             except:
                 ex, val, tb = sys.exc_info()
-                warnings.warn("BasicConfig: error reading %s: %s (%s)." % (filename, ex, val))
+                warnings.warn(
+                    "BasicConfig: error reading {}: {} ({}).".format(
+                        filename, ex, val))
                 return False
             else:
                 return True
@@ -142,16 +149,15 @@ def get_pathname(basename):
 # main function for getting a configuration file. gets it from the common
 # configuration location (/etc/pycopia), but if a full path is given then
 # use that instead.
-def get_config(fname, initdict=None, globalspace=None, **kwargs):
+def get_config(fname, **kwargs):
     fname = get_pathname(fname)
     cf = BasicConfig()
-    if cf.mergefile(fname, globalspace):
-        if initdict:
-            cf.update(initdict)
-        cf.update(kwargs)
+    cf.update(kwargs)  # kwargs available to config file.
+    if cf.mergefile(fname):
+        cf.update(kwargs)  # Again to override config settings
         return cf
     else:
-        raise ConfigReadError("did not successfully read %r." % (fname,))
+        raise ConfigReadError("did not successfully read {!r}.".format(fname))
 
 def check_config(fname):
     """check_config(filename) -> bool

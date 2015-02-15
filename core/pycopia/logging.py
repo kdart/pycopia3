@@ -12,8 +12,10 @@
 #    Lesser General Public License for more details.
 
 """
-Replacement logging module. The Java-inspired Python logging module is
-overkill, we just let syslog handle everything.
+Replacement logging module. The Java-inspired Python logging module does not
+follow best practices, and has a lot of unnecessary bloat.  Pycopia just lets
+syslog handle everything, since it is usually run on systems with syslog-ng and
+that can handle every feature you could want for logging.
 
 The configuration file /etc/pycopia/logging.conf can set the default
 logging parameters.
@@ -22,11 +24,8 @@ logging parameters.
 import sys
 import syslog
 
-from pycopia import basicconfig
-
 
 # stderr functions
-
 def warn(*args):
     print(*args, file=sys.stderr)
 
@@ -41,29 +40,35 @@ def DEBUG(*args, **kwargs):
           file=sys.stderr)
 
 # config file is optional here
+
+from pycopia import basicconfig
 try:
     cf = basicconfig.get_config("logging.conf")
 except basicconfig.ConfigReadError as err:
     warn(err, "Using default values.")
     FACILITY = "USER"
     LEVEL = "WARNING"
-    STDERR = True
+    USESTDERR = True
 else:
     FACILITY = cf.FACILITY
     LEVEL = cf.LEVEL
-    STDERR = cf.get("STDERR", True)
+    USESTDERR = cf.get("USESTDERR", True)
     del cf
-
 del basicconfig
-
-
-syslog.openlog(sys.argv[0].split("/")[-1],
-               syslog.LOG_PID | syslog.LOG_PERROR if STDERR else syslog.PID,
-               getattr(syslog, "LOG_" + FACILITY))
 
 
 _oldloglevel = syslog.setlogmask(syslog.LOG_UPTO(
     getattr(syslog, "LOG_" + LEVEL)))
+
+
+def openlog(name=None, usestderr=USESTDERR, facility=FACILITY):
+    opts = syslog.LOG_PID | syslog.LOG_PERROR if usestderr else syslog.LOG_PID
+    if isinstance(facility, str):
+        facility = getattr(syslog, "LOG_" + facility)
+    if name is None:
+        syslog.openlog(logoption=opts, facility=facility)
+    else:
+        syslog.openlog(ident=name, logoption=opts, facility=facility)
 
 
 def close():
@@ -103,9 +108,22 @@ def emergency(msg):
 
 
 # set loglevels
+def get_logmask():
+    return syslog.setlogmask(0)
+
+
 def loglevel(level):
     global _oldloglevel
     _oldloglevel = syslog.setlogmask(syslog.LOG_UPTO(level))
+
+
+def get_loglevel():
+    mask = syslog.setlogmask(0)
+    for level in (syslog.LOG_DEBUG, syslog.LOG_INFO, syslog.LOG_NOTICE,
+                  syslog.LOG_WARNING, syslog.LOG_ERR, syslog.LOG_CRIT,
+                  syslog.LOG_ALERT, syslog.LOG_EMERG):
+        if syslog.LOG_MASK(level) & mask:
+            return level
 
 
 def loglevel_restore():
@@ -173,6 +191,77 @@ LEVELS = {
     "CRITICAL": syslog.LOG_CRIT,
     "ALERT": syslog.LOG_ALERT,
 }
+LEVELS_REV = dict((v,k) for k,v in LEVELS.items())
+
+
+class Logger:
+    """Simple logger using only syslog."""
+    def __init__(self, name=None, usestderr=False, facility=FACILITY):
+        self.name = name or sys.argv[0].split("/")[-1]
+        syslog.closelog()
+        openlog(name, usestderr, facility)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        syslog.closelog()
+
+    def debug(self, msg):
+        debug(msg)
+
+    def info(self, msg):
+        info(msg)
+    log = info
+
+    def notice(self, msg):
+        notice(msg)
+
+    def warning(self, msg):
+        warning(msg)
+
+    def error(self, msg):
+        error(msg)
+
+    def critical(self, msg):
+        critical(msg)
+
+    def fatal(self, msg):
+        critical(msg)
+
+    def alert(self, msg):
+        alert(msg)
+
+    def emergency(self, msg):
+        emergency(msg)
+
+    def exception(self, ex, val, tb=None):
+        error("{}: {}".format(ex.__name__, val))
+
+    @property
+    def logmask(self):
+        return syslog.setlogmask(0)
+
+    @logmask.setter
+    def logmask(self, newmask):
+        syslog.setlogmask(newmask)
+
+    @property
+    def loglevel(self):
+        level = get_loglevel()
+        return LEVELS_REV[level]
+
+    @loglevel.setter
+    def loglevel(self, newlevel):
+        newlevel = LEVELS[newlevel.upper()]
+        loglevel(newlevel)
+
+    # compatibility methods, note the non-PEP8 names.
+    def getEffectiveLevel(self):
+        return get_loglevel()
+
+    def setLevel(self, newlevel):
+        loglevel(newlevel)  # TODO might need to translate level numbers.
 
 
 class LogLevel:

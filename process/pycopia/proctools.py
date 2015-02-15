@@ -45,7 +45,6 @@ class Process:
         self.deadchild = 0
         self.closed = False
         self.callback = callback  # called at death of process
-        self._log = logfile  # should be file-like object
         self._restart = True  # restart interrupted system calls
         self._buf = b''
         self._errbuf = b''
@@ -54,6 +53,7 @@ class Process:
         self._environment = None
         self._async = bool(async)  # use asyncio, or not
         self._authtoken = None
+        self.logfile = logfile
 
     def __enter__(self):
         return self
@@ -94,49 +94,48 @@ class Process:
         self._restart = bool(flag)
         return old
 
-    def newlog(self, newlog):
-        newlog.write  # asserts newlog has write method
-        self._log = newlog
-    setlog = newlog
-
-    def getlog(self):
-        return self._log
-
-    def removelog(self):
-        self._log = None
-
-    logfile = property(getlog, newlog, removelog, "logfile object")
-
-    def log(self, entry):
-        if self._log:
-            self._log.write(entry)
-
-    def flushlog(self):
-        if self._log:
-            self._log.flush()
-
     def clone(self):
-        """clone()
-        Spawns a copy of this process. Note that the log file is not inherited.
+        """Spawns a copy of this process.
+        Note that the log file is not inherited.
         """
         return self.__class__(self.cmdline, env=self.environment,
                               callback=self.callback, async=self._async)
 
-    def _get_environment(self):
+    @property
+    def logfile(self):
+        """A bytes file-like object that IO will be written to."""
+        return self._log
+
+    @logfile.setter
+    def logfile(self, newlog):
+        if newlog is None:
+            self._log = newlog
+            return
+        newlog.write  # asserts newlog has write method
+        try:
+            self._log = newlog.buffer
+        except AttributeError:
+            self._log = newlog
+
+    @logfile.deleter
+    def logfile(self):
+        self._log = None
+
+    @property
+    def environment(self):
         if self._environment is None:
             ps = ProcStat(self.childpid)
             self._environment = ps.environment
         return self._environment
 
-    def _set_environment(self, env):
+    @environment.setter
+    def environment(self, env):
         assert isinstance(env, dict), "Environment must be a dictionary"
         self._environment = env
 
-    def _del_environment(self):
+    @environment.deleter
+    def environment(self):
         self._environment = None
-
-    environment = property(_get_environment, _set_environment,
-                           _del_environment)
 
     @property
     def basename(self):
@@ -312,8 +311,7 @@ called when child dies. """
 
     def read_handler(self):
         data = self._read(16384)
-        if self._log is not None:
-            self._log.write(data)
+        logging.warning("unhandled read from process")
 
     def write_handler(self):
         self._write_buf()
@@ -322,17 +320,14 @@ called when child dies. """
         pass
 
     def hangup_handler(self):
-        if self._log is not None:
-            self._log.write("Hangup: {}.\n".format(self.cmdline))
+        logging.info("Hangup: {}.\n".format(self.cmdline))
 
     def error_handler(self):
-        if self._log is not None:
-            self._log.write(
-                "Async handler error occured: {}.\n".format(self.basename))
+        logging.error(
+            "Async handler error occured: {}.\n".format(self.basename))
 
     def exception_handler(self, ex, val, tb):
-        if self._log is not None:
-            self._log.write("Error event: {} ({})\n".format(ex, val))
+        logging.error("Error event: {} ({})\n".format(ex, val))
 
 
 class ProcessPipe(Process):
@@ -447,14 +442,14 @@ class ProcessPipe(Process):
     def _read_fd(self, fd, length):
         while 1:
             try:
-                next = os.read(fd, length)
+                data = os.read(fd, length)
             except InterruptedError:
                 continue
             else:
                 break
-        if self._log:
-            self._log.write(next)
-        return next
+        if self._log is not None:
+            self._log.write(data)
+        return data
 
     def _read(self, amt=4096):
         if self._p_stdout is None:
@@ -580,7 +575,7 @@ class ProcessPty(Process):
     def _read(self, length=100):
         while 1:
             try:
-                next = os.read(self._fd, length)
+                data = os.read(self._fd, length)
             except InterruptedError:
                     continue
             except EnvironmentError as why:
@@ -590,9 +585,9 @@ class ProcessPty(Process):
                     raise
             else:
                 break
-        if self._log:
-            self._log.write(next)
-        return next
+        if self._log is not None:
+            self._log.write(data)
+        return data
 
 
 class CoProcessPty(ProcessPty):
@@ -932,16 +927,15 @@ to get the instance.  """
     def respawn_callback(self, deadproc):
         """Callback that performs a respawn, for persistent services."""
         if deadproc.exitstatus.status == 127:
-            deadproc.log("*** process {!r} didn't start (NOT restarting).\n".format(  # noqa
+            logging.error("process {!r} didn't start (NOT restarting).\n".format(  # noqa
                 deadproc.cmdline))
             raise ProcessError("Process never started. Check command line.")
         elif not deadproc.exitstatus:
-            deadproc.log("*** process {!r} died: %s (restarting in 1 sec.).\n".format(  # noqa
+            logging.error("process {!r} died: %s (restarting in 1 sec.).\n".format(  # noqa
                          deadproc.cmdline, deadproc.exitstatus))
             scheduler.add(self._respawn, 1.0, args=(deadproc,))
         else:
-            deadproc.log(
-                "*** process {!r} normal exit (NOT restarting).\n".format(
+            logging.info("process {!r} normal exit (NOT restarting).\n".format(
                     deadproc.cmdline))
         return None
 

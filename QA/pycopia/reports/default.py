@@ -22,8 +22,7 @@ Also servers as usage example of TestCase signals.
 
 import sys
 
-from pycopia.QA.signals import *
-from pycopia.QA.constants import TestResult
+from pycopia.reports import BaseReport
 
 
 RESET = "\x1b[0m" # aka NORMAL
@@ -103,62 +102,17 @@ def inverse_red(text):
     return INVERSE_ON+RED+text+RESET+INVERSE_OFF
 
 
-class BaseReport:
-
-    def initialize(self, title="Title", file=None):
-        pass
-
-    def finalize(self):
-        pass
-
-
 class DefaultReport(BaseReport):
 
     def initialize(self, title, file=None):
         if file is None:
             file = sys.stdout
         self._file = file
-        test_start.connect(self.on_test_start)
-        test_end.connect(self.on_test_end)
-        test_passed.connect(self.on_test_passed)
-        test_incomplete.connect(self.on_test_incomplete)
-        test_failure.connect(self.on_test_failure)
-        test_expected_failure.connect(self.on_test_expected_failure)
-        test_abort.connect(self.on_test_abort)
-        test_info.connect(self.on_test_info)
-        test_diagnostic.connect(self.on_test_diagnostic)
-        test_arguments.connect(self.on_test_arguments)
-        suite_start.connect(self.on_suite_start)
-        suite_end.connect(self.on_suite_end)
-        suite_info.connect(self.on_suite_info)
-        run_start.connect(self.on_run_start)
-        run_end.connect(self.on_run_end)
-        run_arguments.connect(self.on_run_arguments)
-        dut_version.connect(self.on_dut_version)
-        run_comment.connect(self.on_run_comment)
-        report_url.connect(self.on_report_url)
+        super().initialize(title)
         print("{0:^80.80s}".format(inverse(title)), file=file)
 
     def finalize(self):
-        test_start.disconnect(self.on_test_start)
-        test_end.disconnect(self.on_test_end)
-        test_passed.disconnect(self.on_test_passed)
-        test_incomplete.disconnect(self.on_test_incomplete)
-        test_failure.disconnect(self.on_test_failure)
-        test_expected_failure.disconnect(self.on_test_expected_failure)
-        test_abort.disconnect(self.on_test_abort)
-        test_info.disconnect(self.on_test_info)
-        test_diagnostic.disconnect(self.on_test_diagnostic)
-        test_arguments.disconnect(self.on_test_arguments)
-        suite_start.disconnect(self.on_suite_start)
-        suite_end.disconnect(self.on_suite_end)
-        suite_info.disconnect(self.on_suite_info)
-        run_start.disconnect(self.on_run_start)
-        run_end.disconnect(self.on_run_end)
-        run_arguments.disconnect(self.on_run_arguments)
-        dut_version.disconnect(self.on_dut_version)
-        run_comment.disconnect(self.on_run_comment)
-        report_url.disconnect(self.on_report_url)
+        super().finalize()
         print("{0}".format(inverse("Done.")), file=self._file)
         self._file = None
 
