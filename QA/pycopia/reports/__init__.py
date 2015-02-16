@@ -4,6 +4,7 @@
 
 import locale
 
+from pycopia import module
 from pycopia.QA.signals import *
 from pycopia.QA.exceptions import ReportFindError
 
@@ -119,6 +120,9 @@ def get_report(config):
             return default.DefaultReportUnicode()
         else:
             return default.DefaultReport()
+    elif "." in rname:
+        robj = module.get_object(rname)
+        return robj()
     else:
         raise ReportFindError("No report {} defined.".format(rname))
 
