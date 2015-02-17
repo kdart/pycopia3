@@ -41,6 +41,7 @@ import socket
 import traceback
 
 from pycopia import basicconfig
+from pycopia import logging
 from pycopia import passwd
 from pycopia import proctools
 from pycopia.OS import procutils
@@ -60,7 +61,7 @@ def start(config):
         lf = logfile.ManagedStdio(config.LOGFILENAME)
         daemonize.daemonize(lf, pidfile=config.PIDFILE)
     else:
-        lf = sys.stdout.buffer
+        lf = sys.stderr
         with open(config.PIDFILE, "w") as fo:
             fo.write("{}\n".format(os.getpid()))
     start_proc_manager(config, lf)
@@ -104,7 +105,7 @@ def start_proc_manager(config, logfile):
 
     for name, serverlist in list(config.VHOSTS.items()):
         for servername in serverlist:
-            print("Starting {} for vhost {}.".format(servername, name))
+            logging.info("Starting {} for vhost {}.".format(servername, name))
             cmd = "{}/scgi_server -n {}".format(libexec, servername)
             p = pm.spawnprocess(
                 ServerProcess, cmd, persistent=True, logfile=logfile)
@@ -117,7 +118,7 @@ def start_proc_manager(config, logfile):
             pm.spawnpipe("{} -f {}".format(LIGHTTPD, LTCONFIG))
     try:
         asyncio.poller.loop()
-        print("No servers, exited loop.")
+        logging.info("No servers, exited loop.")
     except KeyboardInterrupt:
         pass
     if asyncio.poller:
@@ -134,10 +135,7 @@ class ServerProcess(proctools.ProcessPipe):
         self._debug = debug
 
     def exception_handler(self, ex, val, tb):
-        if self._debug:
-            pass
-        else:
-            traceback.print_exception(ex, val, tb, file=self._log)
+        traceback.print_exception(ex, val, tb, file=self._log)
 
 
 def stop(config):
@@ -205,7 +203,7 @@ def _get_robots_txt(scripts):
 # Don't use a docstring since server is run in optimized mode.
 _doc = """Pycopia server controller.
 
-%s [-?hnN] [-l <logfilename>] [-p <pidfilename>] [<command>]
+{progname} [-?hnN] [-l <logfilename>] [-p <pidfilename>] [<command>]
 
 Options:
  -? or -h   Show this help.
@@ -233,20 +231,20 @@ def main(argv):
     daemonize = True
     frontend = True
     force = False
-    dname = None
+    domainname = None
     servername = os.path.basename(argv[0])
-    logfilename = "/var/log/%s.log" % (servername,)
-    pidfilename = "/var/run/%s.pid" % (servername,)
+    logfilename = "/var/log/{}.log".format(servername)
+    pidfilename = "/run/{}.pid".format(servername)
     cffile = SITE_CONFIG
     try:
         optlist, args = getopt.getopt(argv[1:], "?hdnNFl:p:f:D:")
     except getopt.GetoptError:
-        print(_doc % (servername,))
+        print(_doc.format(progname=servername))
         return
 
     for opt, optarg in optlist:
         if opt in ("-?", "-h"):
-            print(_doc % (servername,))
+            print(_doc.format(progname=servername))
             return 2
         elif opt == "-l":
             logfilename = optarg
@@ -255,7 +253,7 @@ def main(argv):
         elif opt == "-N":
             frontend = False
         elif opt == "-D":
-            dname = optarg
+            domainname = optarg
         elif opt == "-f":
             cffile = optarg
         elif opt == "-F":
@@ -265,10 +263,9 @@ def main(argv):
         elif opt == "-d":
             from pycopia import autodebug  # noqa
 
-    glbl = {"FQDN": dname or socket.getfqdn()}
+    FQDN = domainname or socket.getfqdn()
 
-    config = basicconfig.get_config(cffile, globalspace=glbl)
-
+    config = basicconfig.get_config(cffile, FQDN=FQDN)
     config.SERVERNAME = servername
     config.LOGFILENAME = logfilename
     config.PIDFILE = pidfilename
@@ -294,5 +291,5 @@ def main(argv):
     elif cmd.startswith("che"):
         return check(config)
     else:
-        print(_doc % (servername,))
+        print(_doc.format(progname=servername))
         return 2

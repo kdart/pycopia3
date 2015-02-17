@@ -13,8 +13,6 @@
 #        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.    See the GNU
 #        Lesser General Public License for more details.
 
-
-
 """
 Web server using SCGI interface of lighttpd, adapted to WSGI.
 This provides a peristent mini-backend over a unix socket. This module
@@ -25,14 +23,14 @@ Usually started by the websitectl program, using the website module.
 
 import sys
 import os
-import getopt
 import signal
 
+from pycopia import getopt
 from pycopia import logging
-from pycopia.OS import procfs
 from pycopia import passwd
 from pycopia import basicconfig
 from pycopia import module
+from pycopia.OS import procfs
 
 from pycopia.inet.scgi import SCGIServer
 
@@ -40,26 +38,26 @@ from pycopia.inet.scgi import SCGIServer
 # Factory function creats a server instance with our interface
 # handlers.
 def get_server(config):
-    username = config.get("username")
+    username = config.get("USERNAME")
+    middleware = config.get("MIDDLEWARE", [])
     if username and os.getuid() == 0:
         pwent = passwd.getpwnam(username)
     else:
         pwent = None
 
-    app = module.get_object(config.app_location)
-
-    if "MIDDLEWARE" in config:
-        for mwtuple in config["MIDDLEWARE"]:
-            mwobj = module.get_object(mwtuple[0])
-            args = mwtuple[1:]
-            app.wsgi_app = mwobj(app.wsgi_app, *args)
+    app = module.get_object(config.APP_LOCATION)
 
     if config.DEBUG:
         logging.loglevel_debug()
 
+    for mwtuple in middleware:
+        mwobj = module.get_object(mwtuple[0])
+        args = mwtuple[1:]
+        app = mwobj(app *args)
+
     return SCGIServer(app, config.SOCKETPATH,
-            umask=config.get("SOCKET_UMASK", 0), pwent=pwent,
-            debug=config.DEBUG)
+                      umask=config.get("SOCKET_UMASK", 0), pwent=pwent,
+                      debug=config.DEBUG)
 
 
 def check4server(config):
@@ -76,9 +74,9 @@ def kill_server(config):
     pid = check4server(config)
     if pid:
         os.kill(pid, signal.SIGTERM)
-        print ("Killed %s (%s)." % (config.SERVERNAME, pid))
+        print("Killed {} ({}).".format(config.SERVERNAME, pid))
     else:
-        print ("%s not running." % (config.SERVERNAME,))
+        print("{} not running.".format(config.SERVERNAME))
 
 
 def run_server(argv):
@@ -87,9 +85,9 @@ def run_server(argv):
     debug = False
     killserver = False
     try:
-        optlist, args = getopt.getopt(argv[1:], "dnh?kl:f:p:s:")
+        optlist, longopts, args = getopt.getopt(argv[1:], "dnh?kl:f:p:s:")
     except getopt.GetoptError:
-        print (run_server._doc % (argv[0],))
+        print(run_server._doc.format(procname=argv[0]))
         return
 
     if len(args) > 0:
@@ -97,10 +95,10 @@ def run_server(argv):
     else:
         servername = os.path.basename(argv[0])
 
-    logfilename = "/var/log/%s.log" % (servername,)
-    cffilename = "/etc/pycopia/%s.conf" % (servername,)
-    pidfile="/var/run/%s.pid" % (servername,)
-    socketpath = '/tmp/%s.sock' % (servername,)
+    logfilename = "/var/log/{}.log".format(servername)
+    cffilename = "/etc/pycopia/{}.conf".format(servername)
+    pidfile = "/var/run/{}.pid".format(servername)
+    socketpath = '/tmp/{}.sock'.format(servername)
 
     for opt, optarg in optlist:
         if opt == "-n":
@@ -108,6 +106,7 @@ def run_server(argv):
         elif opt == "-k":
             killserver = True
         elif opt == "-d":
+            from pycopia import autodebug  # noqa
             debug = True
         elif opt == "-u":
             username = optarg
@@ -120,21 +119,23 @@ def run_server(argv):
         elif opt == "-s":
             socketpath = optarg
         elif opt in ("-h", "-?"):
-            print (run_server._doc % (argv[0],))
+            print(run_server._doc.format(procname=argv[0]))
             return 2
 
     try:
         config = basicconfig.get_config(cffilename,
-                    CONFIGFILE=cffilename,
-                    PIDFILE=pidfile,
-                    SOCKETPATH=socketpath,
-                    LOGFILENAME=logfilename,
-                    DEBUG=debug,
-                    SERVERNAME=servername)
+                                        CONFIGFILE=cffilename,
+                                        PIDFILE=pidfile,
+                                        SOCKETPATH=socketpath,
+                                        LOGFILENAME=logfilename,
+                                        DEBUG=debug,
+                                        SERVERNAME=servername)
     except:
         ex, val, tb = sys.exc_info()
-        logging.warn("Could not get server config: %s (%s)" % (ex, val))
+        logging.warn(
+            "Could not get server config: {} ({})".format(ex.__name__, val))
         return 1
+    config.update(longopts)
 
     if username:
         config.USERNAME = username
@@ -144,7 +145,9 @@ def run_server(argv):
         return 0
 
     if check4server(config):
-        logging.warn("Server %r already running on socket %r." % (servername, socketpath))
+        logging.warn(
+            "Server {!r} already running on socket {!r}.".format(servername,
+                                                                 socketpath))
         return 1
 
     if do_daemon and not debug:
@@ -152,7 +155,7 @@ def run_server(argv):
         from pycopia import logfile
         lf = logfile.ManagedStdio(logfilename)
         daemonize.daemonize(lf, pidfile=pidfile)
-    else: # for controller
+    else:  # for controller
         with open(pidfile, "w") as fo:
             fo.write("{}\n".format(os.getpid()))
 
@@ -163,8 +166,8 @@ def run_server(argv):
 # Add documentation this way since server is run in optimized mode.
 run_server._doc = """Run a Pycopia SCGI web mini-server.
 
-    %s [-ndk?] [-l <logfile>] [-f <configfile>] [-p <pidfile>]
-                 [-s <socketpath>] [<servername>]
+    {procname} [-ndk?] [-l <logfile>] [-f <configfile>] [-p <pidfile>]
+                 [-s <socketpath>] <servername>
 
     <servername> determines the configuration, socket, log names, etc. to
     use and defines the SCGI server.
@@ -178,4 +181,3 @@ run_server._doc = """Run a Pycopia SCGI web mini-server.
          -p <pidfile> = Path to PID file.
          -s <socketpath> = Path to UNIX socket.
     """
-

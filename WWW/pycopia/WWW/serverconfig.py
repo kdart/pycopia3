@@ -127,8 +127,7 @@ $HTTP["host"] == "{hostname}" {{
 
 
 def get_site_config(filename=SITE_CONFIG):
-    glbl = {"FQDN": socket.getfqdn()}
-    return basicconfig.get_config(filename, globalspace=glbl)
+    return basicconfig.get_config(filename, FQDN=socket.getfqdn())
 
 
 def config_lighttpd(argv, filelike):
@@ -142,7 +141,7 @@ def config_lighttpd(argv, filelike):
         ssl_used = (bool(sslport) and
                     os.path.exists("/etc/pycopia/ssl/{}.crt".format(name)))
         ltc.add_vhost(name, serverlist, ssl_used)
-    ltc.add_global("scgi.debug", "1")
+    # ltc.add_global("scgi.debug", "1")
     ltc.emit(filelike)
 
 if __name__ == '__main__':
