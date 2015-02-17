@@ -179,6 +179,8 @@ The wrapped object need only implement the following methods:
         ptype = type(patt)
         if isinstance(patt, str):
             solist.append(self._get_re(patt.encode(), mtype, callback))
+        elif isinstance(patt, bytes):
+            solist.append(self._get_re(patt, mtype, callback))
         elif ptype is tuple:
             solist.append(self._get_re(*patt))
         elif ptype is list:
@@ -230,26 +232,24 @@ The wrapped object need only implement the following methods:
     def read(self, amt=-1, timeout=None):
         self._timed_out = 0
         timeout = timeout or self.default_timeout
-        ev = self.sched.add(timeout, 0, self._timeout_cb, ())
-        try:
-            while 1:
-                try:
-                    data = self._fo.read(amt)
-                except EnvironmentError as val:
-                    if val.errno == EINTR:
-                        if self._timed_out == 1:
-                            raise scheduler.TimeoutError(
-                                "expect: timed out during read.")
-                        else:
-                            continue
-                    else:
-                        raise
-                except EOFError:
-                    return ""
-                else:
-                    break
-        finally:
-            self.sched.remove(ev)
+        data = self.sched.iotimeout(self._fo.read, args=(amt,), timeout=timeout)
+#        ev = self.sched.add(self._timeout_cb, timeout)
+#        try:
+#            while 1:
+#                try:
+#                    data = self._fo.read(amt)
+#                except InterruptedError as val:
+#                    if self._timed_out == 1:
+#                        raise scheduler.TimeoutError(
+#                            "expect: timed out during read.")
+#                    else:
+#                        continue
+#                except EOFError:
+#                    return ""
+#                else:
+#                    break
+#        finally:
+#            self.sched.remove(ev)
         if self._log:
             self._log.write(data)
         return data

@@ -36,7 +36,7 @@ def get_useragents():
     return sorted(rv)
 
 
-def get_useragent(name):
+def get_useragent(name, default=None):
     """Select a user agent from the data file."""
     fname = os.path.join(os.path.dirname(__file__), "useragents.txt")
     with open(fname) as fo:
@@ -47,4 +47,5 @@ def get_useragent(name):
                 continue
             if name == agentname.strip():
                 return agentstring.strip()
+    return default
 

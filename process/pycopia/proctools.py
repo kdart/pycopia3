@@ -431,34 +431,22 @@ class ProcessPipe(Process):
         self.callback = None  # break a possible reference loop
 
     def _write(self, data):
-        while 1:
-            try:
-                writ = os.write(self._p_stdin, data)
-            except InterruptedError:
-                continue
-            else:
-                return writ
+        return os.write(self._p_stdin, data)
 
     def _read_fd(self, fd, length):
-        while 1:
-            try:
-                data = os.read(fd, length)
-            except InterruptedError:
-                continue
-            else:
-                break
+        data = os.read(fd, length)
         if self._log is not None:
             self._log.write(data)
         return data
 
     def _read(self, amt=4096):
         if self._p_stdout is None:
-            return ""
+            return b""
         return self._read_fd(self._p_stdout, amt)
 
     def _readerr(self, amt):
         if self._stderr is None:
-            return ""
+            return b""
         return self._read_fd(self._stderr, amt)
 
 
@@ -564,27 +552,10 @@ class ProcessPty(Process):
         self.callback = None  # break a possible reference loop
 
     def _write(self, data):
-        while 1:
-            try:
-                writ = os.write(self._fd, data)
-            except InterruptedError:
-                continue
-            else:
-                return writ
+        return os.write(self._fd, data)
 
     def _read(self, length=100):
-        while 1:
-            try:
-                data = os.read(self._fd, length)
-            except InterruptedError:
-                    continue
-            except EnvironmentError as why:
-                if why.errno == EIO:
-                    raise EOFError("pty is closed")
-                else:
-                    raise
-            else:
-                break
+        data = os.read(self._fd, length)
         if self._log is not None:
             self._log.write(data)
         return data
@@ -609,8 +580,8 @@ class CoProcessPipe(ProcessPipe):
                          callback, async)
 
         p2cread, self._p_stdin = os.pipe()
-        self._p_stdout, c2pwrite = os.pipe()
         os.set_inheritable(p2cread, True)
+        self._p_stdout, c2pwrite = os.pipe()
         os.set_inheritable(c2pwrite, True)
         if merge:
             self._stderr, c2perr = None, None
@@ -620,19 +591,25 @@ class CoProcessPipe(ProcessPipe):
         self.childpid = os.fork()
         self.childpid2 = None
         if self.childpid == 0:
-            # Child
-            os.close(0)
-            os.close(1)
-            os.close(2)
-            os.dup2(p2cread, 0)
-            os.dup2(c2pwrite, 1)
-            if merge:
-                os.dup2(c2pwrite, 2)
-            else:
-                os.dup2(c2perr, 2)
-            if pwent:
-                run_as(pwent)
-
+            try:
+                # Child
+                os.close(0)
+                os.close(1)
+                os.close(2)
+                os.dup2(p2cread, 0)
+#                sys.stdin = os.fdopen(0, mode="r")
+                os.dup2(c2pwrite, 1)
+#                sys.stdout = os.fdopen(1, mode="w")
+                if merge:
+                    os.dup2(c2pwrite, 2)
+#                    sys.stderr = os.fdopen(2, mode="w")
+                else:
+                    os.dup2(c2perr, 2)
+#                    sys.stderr = os.fdopen(2, mode="w")
+                if pwent:
+                    run_as(pwent)
+            except Exception:
+                logging.exception_error("CoProcessPipe")
         os.close(p2cread)
         os.close(c2pwrite)
         if c2perr:
@@ -787,14 +764,8 @@ to get the instance.  """
                 rv = method(*args)
             except SystemExit as val:
                 rv = int(val)
-            except:
-                ex, val, tb = sys.exc_info()
-                try:
-                    import traceback
-                    with open("/tmp/proctools_coprocess.log", "w+") as errfile:
-                        traceback.print_exception(ex, val, tb, None, errfile)
-                finally:
-                    ex = val = tb = None
+            except Exception:
+                logging.exception_error("coprocess")
                 rv = 127
             if rv is None:
                 rv = 0
@@ -1032,7 +1003,8 @@ def spawnpty(cmd, logfile=None, env=None, callback=None,
     return proc
 
 
-def coprocess(func, args=(), logfile=None, env=None, callback=None, async=0):
+def coprocess(func, args=(), logfile=None, env=None, callback=None,
+              async=False):
     """Works like fork(), but connects the childs stdio to a pty. Returns a
     file-like object connected to the master end of the child pty.
     """

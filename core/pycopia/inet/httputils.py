@@ -96,7 +96,7 @@ class QuotedString(object):
         self.data = val
 
     def __str__(self):
-        return httpquote(str(self.data).encode("ascii"))
+        return httpquote(str(self.data))
 
     def __repr__(self):
         return "%s(%r)" % (self.__class__, self.data)
@@ -288,7 +288,7 @@ class HTTPHeader(object):
         return str(self.value)
 
     def asWSGI(self):
-        return self._name, str(self.value)
+        return self._name, str(self.value).encode("ascii")
 
     def verify(self):
         if not self.value:
@@ -347,7 +347,7 @@ class HTTPHeaderWithParameters(HTTPHeader):
         self.parameters = kwargs
 
     def asWSGI(self):
-        return self._name, self._val_string()
+        return self._name, self._val_string().encode("ascii")
 
     def _val_string(self):
         if self.parameters:
@@ -374,15 +374,15 @@ class HTTPHeaderWithParameters(HTTPHeader):
 ### General headers
 
 class CacheControl(HTTPHeaderWithParameters):
-    HEADER="Cache-Control"
+    HEADER = b"Cache-Control"
 
 
 class Connection(HTTPHeader):
-    HEADER="Connection"
+    HEADER = b"Connection"
 
 
 class Date(HTTPHeader):
-    HEADER="Date"
+    HEADER = b"Date"
 
     def parse_value(self, value):
         return HTTPDate(value)
@@ -393,14 +393,14 @@ class Date(HTTPHeader):
 
 
 class Pragma(HTTPHeader):
-    HEADER="Pragma"
+    HEADER = b"Pragma"
 
 
 class Trailer(HTTPHeader):
-    HEADER="Trailer"
+    HEADER = b"Trailer"
 
 class TransferEncoding(HTTPHeaderWithParameters):
-    HEADER="Transer-Encoding"
+    HEADER = b"Transer-Encoding"
 
     def initialize(self, **kwargs):
         self.parameters = kwargs
@@ -431,71 +431,71 @@ class TransferEncoding(HTTPHeaderWithParameters):
 
 
 class Upgrade(HTTPHeader):
-    HEADER="Upgrade"
+    HEADER = b"Upgrade"
 
 
 class Via(HTTPHeader):
-    HEADER="Via"
+    HEADER = b"Via"
 
 
 class Warning(HTTPHeader):
-    HEADER="Warning"
+    HEADER = b"Warning"
 
 
 ### Entity headers
 
 class Allow(HTTPHeader):
-    HEADER="Allow"
+    HEADER = b"Allow"
 
 
 class ContentEncoding(HTTPHeader):
-    HEADER="Content-Encoding"
+    HEADER = b"Content-Encoding"
 
 
 class ContentLanguage(HTTPHeader):
-    HEADER="Content-Language"
+    HEADER = b"Content-Language"
 
 
 class ContentLength(HTTPHeader):
-    HEADER="Content-Length"
+    HEADER = b"Content-Length"
 
 
 class ContentLocation(HTTPHeader):
-    HEADER="Content-Location"
+    HEADER = b"Content-Location"
 
 
 class ContentMD5(HTTPHeader):
-    HEADER="Content-MD5"
+    HEADER = b"Content-MD5"
 
 
 class ContentRange(HTTPHeader):
-    HEADER="Content-Range"
+    HEADER = b"Content-Range"
 
 
 class ContentDisposition(HTTPHeaderWithParameters):
-    HEADER="Content-Disposition"
+    HEADER = b"Content-Disposition"
 
 
 class ContentType(HTTPHeaderWithParameters):
-    HEADER="Content-Type"
+    HEADER = b"Content-Type"
 
 
 class ETag(HTTPHeader):
-    HEADER="ETag"
+    HEADER = b"ETag"
 
 
 class Expires(HTTPHeader):
-    HEADER="Expires"
+    HEADER = b"Expires"
 
 
 class LastModified(HTTPHeader):
-    HEADER="Last-Modified"
+    HEADER = b"Last-Modified"
 
 
 ### Request headers
 
 class Accept(HTTPHeader):
-    HEADER="Accept"
+    HEADER = b"Accept"
     def initialize(self, media=None):
         if media:
             v = [o for o in media if isinstance(o, MediaRange)]
@@ -538,71 +538,71 @@ class Accept(HTTPHeader):
 
 
 class AcceptCharset(HTTPHeader):
-    HEADER="Accept-Charset"
+    HEADER = b"Accept-Charset"
 
 
 class AcceptEncoding(HTTPHeader):
-    HEADER="Accept-Encoding"
+    HEADER = b"Accept-Encoding"
 
 
 class AcceptLanguage(HTTPHeader):
-    HEADER="Accept-Language"
+    HEADER = b"Accept-Language"
 
 
 class Expect(HTTPHeaderWithParameters):
-    HEADER="Expect"
+    HEADER = b"Expect"
 
 
 class From(HTTPHeader):
-    HEADER="From"
+    HEADER = b"From"
 
 
 class Host(HTTPHeader):
-    HEADER="Host"
+    HEADER = b"Host"
 
 
 class IfModifiedSince(HTTPHeader):
-    HEADER="If-Modified-Since"
+    HEADER = b"If-Modified-Since"
 
 
 class IfMatch(HTTPHeader):
-    HEADER="If-Match"
+    HEADER = b"If-Match"
 
 
 class IfNoneMatch(HTTPHeader):
-    HEADER="If-None-Match"
+    HEADER = b"If-None-Match"
 
 
 class IfRange(HTTPHeader):
-    HEADER="If-Range"
+    HEADER = b"If-Range"
 
 
 class IfUnmodifiedSince(HTTPHeader):
-    HEADER="If-Unmodified-Since"
+    HEADER = b"If-Unmodified-Since"
 
 
 class MaxForwards(HTTPHeader):
-    HEADER="Max-Forwards"
+    HEADER = b"Max-Forwards"
 
 
 class ProxyAuthorization(HTTPHeader):
-    HEADER="Proxy-Authorization"
+    HEADER = b"Proxy-Authorization"
 
 
 class Range(HTTPHeader):
-    HEADER="Range"
+    HEADER = b"Range"
 
 
 class Referer(HTTPHeader):
-    HEADER="Referer"
+    HEADER = b"Referer"
 
 
 class TE(HTTPHeader):
-    HEADER="TE"
+    HEADER = b"TE"
 
 
 class Authorization(HTTPHeader):
-    HEADER = "Authorization"
+    HEADER = b"Authorization"
     def __str__(self):
         val = self.encode()
         return "%s: %s" % (self._name, val)
@@ -646,7 +646,7 @@ class UserAgent(HTTPHeader):
     """see: <http://www.mozilla.org/build/revised-user-agent-strings.html>
     default value: "Mozilla/5.0 (X11; U; Linux i686; en-US)"
     """
-    HEADER = "User-Agent"
+    HEADER = b"User-Agent"
     def initialize(self, product=None, comment=None):
         self.data = []
         if product:
@@ -668,47 +668,47 @@ class UserAgent(HTTPHeader):
 
 ### Response headers
 class AcceptRanges(HTTPHeader):
-    HEADER="Accept-Ranges"
+    HEADER = b"Accept-Ranges"
 
 class Age(HTTPHeader):
-    HEADER="Age"
+    HEADER = b"Age"
 
 
 class ETag(HTTPHeader):
-    HEADER="ETag"
+    HEADER = b"ETag"
 
 
 class Location(HTTPHeader):
-    HEADER="Location"
+    HEADER = b"Location"
 
 
 class ProxyAuthenticate(HTTPHeader):
-    HEADER="Proxy-Authenticate"
+    HEADER = b"Proxy-Authenticate"
 
 
 class Public(HTTPHeader):
-    HEADER="Public"
+    HEADER = b"Public"
 
 
 class RetryAfter(HTTPHeader):
-    HEADER="Retry-After"
+    HEADER = b"Retry-After"
 
 
 class Server(HTTPHeader):
-    HEADER="Server"
+    HEADER = b"Server"
 
 
 class Vary(HTTPHeader):
-    HEADER="Vary"
+    HEADER = b"Vary"
 
 
 class WWWAuthenticate(HTTPHeader):
-    HEADER="WWW-Authenticate"
+    HEADER = b"WWW-Authenticate"
 
 # cookies!  Slightly different impementation from the stock Cookie module.
 
 class SetCookie(HTTPHeaderWithParameters):
-    HEADER = "Set-Cookie"
+    HEADER = b"Set-Cookie"
 
     def parse_value(self, text):
         return parse_setcookie(text)
@@ -721,7 +721,7 @@ class SetCookie(HTTPHeaderWithParameters):
 
 
 class SetCookie2(HTTPHeaderWithParameters):
-    HEADER = "Set-Cookie2"
+    HEADER = b"Set-Cookie2"
 
     def parse_value(self, text):
         return parse_setcookie(text)
@@ -735,7 +735,7 @@ class SetCookie2(HTTPHeaderWithParameters):
 
 class Cookie(HTTPHeader):
     """A Cookie class. This actually holds a collection of RawCookies."""
-    HEADER = "Cookie"
+    HEADER = b"Cookie"
 
     def __str__(self):
         return "%s: %s" % (self._name, self.value_string())
@@ -1329,8 +1329,8 @@ _init()
 
 def get_header(line):
     """Factory for getting proper header object from text line."""
-    if isinstance(line, str):
-        parts = line.split(":", 1)
+    if isinstance(line, bytes):
+        parts = line.split(b":", 1)
         name = parts[0].strip()
         try:
             value = parts[1]
@@ -1347,7 +1347,8 @@ def get_header(line):
     elif isinstance(line, HTTPHeader):
         return line
     else:
-        raise ValueError("Need string or HTTPHeader instance, not %r." % (type(line),))
+        raise ValueError(
+            "Need string or HTTPHeader instance, not {!r}.".format(type(line)))
 
 
 def make_header(name, _value=None, **kwargs):
@@ -1400,36 +1401,36 @@ if __name__ == "__main__":
     auth = Authorization(username="myname", password="mypassword")
     print (auth)
     print ("---------- Accept")
-    a = Accept('Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5')
+    a = Accept(b'Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5')
     print (a.value)
-    print(Accept("text/xml"))
-    print(Accept(["text/xml", "application/xml", "application/xhtml+xml"]))
+    print(Accept(b"text/xml"))
+    print(Accept([b"text/xml", b"application/xml", b"application/xhtml+xml"]))
     print ("---------- ContentType")
-    ct = ContentType("text/html", charset="UTF-8")
+    ct = ContentType(b"text/html", charset="UTF-8")
     print((ct.asWSGI()))
 
     print ("----------")
-    setcookie = SetCookie('pycopia="somevalue&this+plus%22quotes"; path="/"')
+    setcookie = SetCookie(b'pycopia="somevalue&this+plus%22quotes"; path="/"')
     print((setcookie.asWSGI()))
     print((setcookie.asWSGI()[1]))
-    print((CacheControl(no_cache="set-cookie2")))
+    print((CacheControl(no_cache=b"set-cookie2")))
 
     cj = CookieJar()
-    cj.add_cookie("pycopia", "AESFKAJS", max_age=24, path="/")
+    cj.add_cookie(b"pycopia", b"AESFKAJS", max_age=24, path=b"/")
     print((httpquote("/")))
     print((cj.get_setcookies()))
 
     hl = Headers()
-    hl.add_header(("Content-Length", "222"))
+    hl.add_header((b"Content-Length", b"222"))
     print(hl)
-    h2 = Headers([("Content-Length", "222"), ("Host", "www.example.com")])
+    h2 = Headers([(b"Content-Length", b"222"), (b"Host", b"www.example.com")])
     print(h2)
 
-    d1 = HTTPDate("Sun, 06 Nov 1994 08:49:37 GMT")
+    d1 = HTTPDate(b"Sun, 06 Nov 1994 08:49:37 GMT")
     print(d1)
-    d2 = HTTPDate("Sunday, 06-Nov-94 08:49:37 GMT")
+    d2 = HTTPDate(b"Sunday, 06-Nov-94 08:49:37 GMT")
     print(d2)
-    d3 = HTTPDate("Sun Nov  6 08:49:37 1994")
+    d3 = HTTPDate(b"Sun Nov  6 08:49:37 1994")
     print((HTTPDate.now()))
     print((Date.now()))
 

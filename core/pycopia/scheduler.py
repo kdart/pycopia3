@@ -129,6 +129,7 @@ class Scheduler:
         signal.siginterrupt(signum, True)
         timer = timers.IntervalTimer(signum)
         timer.settime(float(timeout))
+        kwargs = kwargs or {}
         try:
             while 1:
                 try:
@@ -142,7 +143,7 @@ class Scheduler:
             timer.settime(0.0)
             signal.signal(signum, oldhandler)
 
-    def _timedio_cb(self):
+    def _timedio_cb(self, sig, stack):
         self._timed_out = 1
 
 

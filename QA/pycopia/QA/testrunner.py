@@ -264,6 +264,7 @@ class TestRunner:
         self.environment = environment.get_environment(
             cf.get("environmentname", "default"))
         cf.username = os.environ["USER"]
+        self.environment.owner = cf.username
         # used as the timestamp for output location.
         runnertimestamp = datetime.now().strftime("%Y%m%d-%H:%M:%S.%f")
         # set resultsdir to full path where test run artifacts are placed.
@@ -302,6 +303,7 @@ class TestRunner:
         rpt = cf.report
         rpt.finalize()
         self.environment.clear()
+        self.environment.owner = None
         del self.environment
         del cf["report"]
         # remove log/results directory if it's empty.

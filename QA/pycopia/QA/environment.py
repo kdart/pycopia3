@@ -79,6 +79,11 @@ class EnvironmentRuntime:
     def owner(self):
         return self._environment.owner
 
+    @owner.setter
+    def owner(self, name):
+        user = models.User.get_by_username(name)
+        self._environment.owner = user
+
     def get_role(self, rolename):
         try:
             return self._eqcache[rolename]
@@ -138,7 +143,7 @@ class EnvironmentRuntime:
             return self.get_role(name)
         except:
             ex, val, tb = sys.exc_info()
-            raise AttributeError("%s: %s" % (ex, val))
+            raise AttributeError("{}: {}".format(ex.__name__, val))
 
     # Allow persistent storage of environment state in the state attribute.
     @property

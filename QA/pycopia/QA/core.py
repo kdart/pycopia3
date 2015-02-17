@@ -169,7 +169,7 @@ class TestCase:
                 debugger.post_mortem(tb, ex, val)
                 tb = None
             self.incomplete("{}: Exception: ({}: {})".format(
-                self.test_name, ex, val))
+                self.test_name, ex.__name__, val))
         endtime = datetime.now()
         test_end.send(self, time=endtime)
         self._finalize()
@@ -180,7 +180,7 @@ class TestCase:
             self.initialize()
         except:
             ex, val, tb = sys.exc_info()
-            self.diagnostic("%s (%s)" % (ex, val))
+            self.diagnostic("{} ({})".format(ex.__name__, val))
             if self._debug:
                 debugger.post_mortem(tb, ex, val)
             raise TestSuiteAbort("Test initialization failed!")
@@ -195,7 +195,7 @@ class TestCase:
             self.finalize()
         except:
             ex, val, tb = sys.exc_info()
-            self.diagnostic("%s (%s)" % (ex, val))
+            self.diagnostic("{} ({})".format(ex.__name__, val))
             if self._debug:
                 debugger.post_mortem(tb, ex, val)
             raise TestSuiteAbort("Test finalize failed!")
@@ -948,7 +948,8 @@ class TestSuite:
             if self._debug:
                 ex, val, tb = sys.exc_info()
                 debugger.post_mortem(tb, ex, val)
-            self.info("Suite failed to initialize: %s (%s)" % (ex, val))
+            self.info(
+                "Suite failed to initialize: {} ({})".format(ex.__name__, val))
             raise TestSuiteAbort(val)
 
     def check_prerequisites(self, currententry, upto):
@@ -962,7 +963,7 @@ class TestSuite:
                     if entry.result.is_passed():
                         continue
                     else:
-                        tc = currententry.inst.test_name
+                        tc = currententry.inst
                         test_start.send(tc, name=tc.test_name, time=datetime.now())  # noqa
                         test_diagnostic.send(tc, message="Prerequisite: {}".format(prereq))  # noqa
                         test_incomplete.send(tc, message="Prerequisite did not pass.")  # noqa
@@ -1004,7 +1005,8 @@ class TestSuite:
             if self._debug:
                 print()  # ensure debugger prompts starts on new line.
                 debugger.post_mortem(tb, ex, val)
-            self.info("Suite failed to finalize: {} ({})".format(ex, val))
+            self.info(
+                "Suite failed to finalize: {} ({})".format(ex.__name__, val))
             if self._nested:
                 raise TestSuiteAbort(
                     "subordinate suite {!r} failed to finalize.".format(
