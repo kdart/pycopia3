@@ -1392,6 +1392,10 @@ def get_primary_key_value(dbrow):
         raise ModelError("No primary key for this row: {!r}".format(dbrow))
 
 
+def get_tables():
+    return tuple(TABLES)
+
+
 _DBSCHEMES = {
     'postgres': PostgresqlDatabase,
     'postgresql': PostgresqlDatabase,

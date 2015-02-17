@@ -17,8 +17,6 @@ the web server framework (pycopia.WWW).
 """
 
 from pycopia.QA.db.webui import app
-from pycopia.QA.db import models
 
 
-models.connect()
 app.run(debug=True, use_reloader=False)

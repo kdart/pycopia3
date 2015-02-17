@@ -12,52 +12,33 @@
 #    Lesser General Public License for more details.
 
 """
-WebUI views.
+WebUI views. Implements an Angular application. Angular fragments are also
+served from here.
 """
+
 
 from pycopia.QA.db import models
 from pycopia.QA.db import config
 
 from pycopia.QA.db.webui import app
 
-from flask import (url_for, Blueprint, abort, redirect, request, session, g,
-                   render_template, render_template_string, make_response,
-                   escape, json, jsonify)
+from flask import (url_for, make_response, abort, redirect, request, session, g)
+
 from flask.ext.restful import (reqparse, Api, Resource, fields, marshal_with)
 
 
-@app.route("/")
-def index():
-    cssurl = url_for('static', filename='qadbstyle.css')
-    menuitems = [
-            "EquipmentModel",
-            "Equipment",
-            "Environments",
-            "TestJob",
-        ]
-    return render_template("index.html", apptitle="Database Editor",
-                           pagetitle="Database Editor Home",
-                           mainstyle=cssurl, menu=menuitems)
 
+ANGULAR_FRAGMENTS = {
+        "testme": "<testme></testme>",
+}
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        request.form["username"]
-        request.form["password"]
-        request.form["key"]
-        redir = request.form["redir"]
-        # TODO do_the_login()
-        return jsonify(redir=redir, code=200)
-        # return jsonify(error="Invalid login", code=401)
+@app.route("/fragments/<string:name>")
+def fragments(name):
+    frag = ANGULAR_FRAGMENTS.get(name)
+    if frag:
+        return frag
     else:
-        return render_template("login.html", message="Testing", key="testkey",
-                               redirect="/")
-
-
-@app.route("/db")
-def db():
-    return render_template("db.html", mainstyle=cssurl)
+        abort(404)
 
 
 # RESTful API
@@ -102,6 +83,11 @@ class EquipmentList(Resource):
     def post(self):
         pass
 
+class TableList(Resource):
+
+    def get(self):
+        return models.get_tables()
+
 
 class Equipment(Resource):
 
@@ -117,9 +103,9 @@ class Equipment(Resource):
 
 
 api = Api(app)
-api.add_resource(ConfigList, '/api1/config')
-api.add_resource(Config, '/api1/config/<string:key>')
-api.add_resource(EquipmentList, '/api1/equipment')
-api.add_resource(Equipment, '/api1/equipment/<int:eqid>')
-
+api.add_resource(TableList, '/')
+api.add_resource(ConfigList, '/config')
+api.add_resource(Config, '/config/<string:key>')
+api.add_resource(EquipmentList, '/equipment')
+api.add_resource(Equipment, '/equipment/<int:eqid>')
 
