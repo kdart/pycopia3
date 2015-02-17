@@ -1,8 +1,6 @@
 #!/usr/bin/python3
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
 #
-#    Copyright (C) 2010 Keith Dart <keith@dartworks.biz>
-#
 #    This library is free software; you can redistribute it and/or
 #    modify it under the terms of the GNU Lesser General Public
 #    License as published by the Free Software Foundation; either
@@ -15,36 +13,38 @@
 
 """
 Implment an abstraction of a protocol state machine.
-
 """
 
 import sys
 import re
+import fnmatch
 
 from pycopia.stringmatch import compile_exact
-from pycopia.aid import Enum
 
 
 class ProtocolExit(Exception):
     """Raise when the protocol completes."""
     pass
 
+
 class ProtocolError(Exception):
     """Raise when the protocol transition is invalid."""
     pass
 
 
-RESET = Enum(0, "RESET")
-ANY = Enum(-1, "ANY")
+RESET = 0
+ANY = object()
 
-# default transition
+
 def transition_error(text):
+    """default transition."""
     raise ProtocolError('Symbol {!r} is undefined.'.format(text))
 
 
-class StateMachine(object):
-    ANY = ANY # place here for easy access from other modules
+class StateMachine:
+    ANY = ANY  # place here for easy access from other modules
     RESET = RESET
+
     def __init__(self, initial_state=RESET):
         self._exact_transitions = {}
         self._any_transitions = {}
@@ -58,10 +58,10 @@ class StateMachine(object):
 
     def reset(self):
         self.current_state = self.initial_state
-        self.stack = [] # primary stack
-        self.altstack = [] # alternate stack
+        self.stack = []  # primary stack
+        self.altstack = []  # alternate stack
 
-    #  stacks for user
+    # stacks for user
     def push(self, v):
         self.stack.append(v)
 
@@ -88,7 +88,7 @@ class StateMachine(object):
             pass
 
         try:
-            rel =  self._re_transitions[state]
+            rel = self._re_transitions[state]
             for cre, action, next in rel:
                 mo = cre.search(symbol)
                 if mo:
@@ -100,7 +100,7 @@ class StateMachine(object):
             pass
 
         try:
-            action, next =  self._any_transitions[state]
+            action, next = self._any_transitions[state]
             self.current_state = next
             if action:
                 action(symbol)
@@ -131,7 +131,7 @@ class StateMachine(object):
         self._any_transitions[state] = (action, next_state)
 
     def add_glob(self, expression, state, action, next_state):
-        self.add_regex(glob_translate(expression),
+        self.add_regex(fnmatch.translate(expression),
                                    state, action, next_state)
 
     def add_regex(self, expression, state, action, next_state,
@@ -150,15 +150,14 @@ class StateMachine(object):
 
 def is_exact(pattern):
     for c in pattern:
-        if c in ".^$*?+\\{}(),[]|":
+        if c in rb".^$*?+\{}(),[]|":
             return False
     return True
 
 
-
-class Protocol(object):
+class Protocol:
     """Implement the actions for the state machine. Add bound methods to it."""
-    EOL = "\n"
+    EOL = b"\n"
 
     def __init__(self, eol=None):
         self.states = StateMachine()
@@ -243,21 +242,21 @@ if __name__ == "__main__":
 
         def initialize(self, fsm):
             fsm.set_default_transition(self._error, fsm.RESET)
-            fsm.add("GREETINGS\n", fsm.RESET, self._bye, 2)
+            fsm.add(b"GREETINGS\n", fsm.RESET, self._bye, 2)
             fsm.add(fsm.ANY, 2, self._bye, fsm.RESET)
 
         def start(self):
-            self.writeln("HELLO type GREETINGS")
+            self.writeln(b"HELLO type GREETINGS")
 
         def _bye(self, match):
-            self.writeln("BYE")
+            self.writeln(b"BYE")
             raise ProtocolExit
 
         def _error(self, symbol):
-            self.writeln("ERROR")
+            self.writeln(b"ERROR")
 
     proto = TestProtocol()
     try:
-        proto.run(IO.ConsoleIO())
+        proto.run(IO.ConsoleIO(binary=True))
     except ProtocolExit:
         print("exited")

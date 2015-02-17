@@ -20,6 +20,7 @@ interacting with processes.
 
 import os
 import re
+import fnmatch
 from errno import EINTR
 
 from pycopia import scheduler
@@ -165,7 +166,7 @@ The wrapped object need only implement the following methods:
                 self._patt_cache[patt] = p = (compile_exact(patt), callback)
                 return p
             elif mtype == GLOB:
-                self._patt_cache[patt] = p = (re.compile(glob_translate(patt)),
+                self._patt_cache[patt] = p = (re.compile(fnmatch.translate(patt)),  # noqa
                                               callback)
                 return p
             elif mtype == REGEX:
@@ -278,7 +279,8 @@ The wrapped object need only implement the following methods:
         """
         if filt:
             assert isinstance(filt, collections.Callable)
-        lines = []; n = 0
+        lines = []
+        n = 0
         while n < N:
             line = self.readline(timeout)
             if filt:
@@ -367,40 +369,3 @@ The wrapped object need only implement the following methods:
                     eng.step(next)
                 else:
                     break
-
-
-# swiped from the fnmatch module for efficiency
-def glob_translate(pat):
-    """Translate a shell (glob style) pattern to a regular expression.
-    There is no way to quote meta-characters.
-    """
-    i, n = 0, len(pat)
-    res = ''
-    while i < n:
-        c = pat[i]
-        i = i+1
-        if c == '*':
-            res = res + '.*'
-        elif c == '?':
-            res = res + '.'
-        elif c == '[':
-            j = i
-            if j < n and pat[j] == '!':
-                j = j+1
-            if j < n and pat[j] == ']':
-                j = j+1
-            while j < n and pat[j] != ']':
-                j = j+1
-            if j >= n:
-                res = res + '\\['
-            else:
-                stuff = pat[i:j].replace('\\', '\\\\')
-                i = j+1
-                if stuff[0] == '!':
-                    stuff = '^' + stuff[1:]
-                elif stuff[0] == '^':
-                    stuff = '\\' + stuff
-                res = '%s[%s]' % (res, stuff)
-        else:
-            res = res + re.escape(c)
-    return res + "$"
