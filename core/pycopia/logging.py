@@ -40,7 +40,6 @@ def DEBUG(*args, **kwargs):
           file=sys.stderr)
 
 # config file is optional here
-
 from pycopia import basicconfig
 try:
     cf = basicconfig.get_config("logging.conf")
@@ -61,14 +60,17 @@ _oldloglevel = syslog.setlogmask(syslog.LOG_UPTO(
     getattr(syslog, "LOG_" + LEVEL)))
 
 
-def openlog(name=None, usestderr=USESTDERR, facility=FACILITY):
+def openlog(ident=None, usestderr=USESTDERR, facility=FACILITY):
     opts = syslog.LOG_PID | syslog.LOG_PERROR if usestderr else syslog.LOG_PID
     if isinstance(facility, str):
         facility = getattr(syslog, "LOG_" + facility)
-    if name is None:
+    if ident is None:  # alas, openlog does not take None as an ident parameter.
         syslog.openlog(logoption=opts, facility=facility)
     else:
-        syslog.openlog(ident=name, logoption=opts, facility=facility)
+        syslog.openlog(ident=ident, logoption=opts, facility=facility)
+
+# Assume user wants to log already, according to the configuration.
+openlog()
 
 
 def close():
@@ -191,7 +193,7 @@ LEVELS = {
     "CRITICAL": syslog.LOG_CRIT,
     "ALERT": syslog.LOG_ALERT,
 }
-LEVELS_REV = dict((v,k) for k,v in LEVELS.items())
+LEVELS_REV = dict((v, k) for k, v in LEVELS.items())
 
 
 class Logger:
@@ -220,7 +222,11 @@ class Logger:
     def warning(self, msg):
         warning(msg)
 
-    def error(self, msg):
+    def error(self, msg, exc_info=None):
+        if exc_info is not None:
+            ex, val, tb = exc_info
+            tb = None  # noqa
+            msg = "{}: {} ({})".format(msg, ex.__name__, val)
         error(msg)
 
     def critical(self, msg):
@@ -236,7 +242,7 @@ class Logger:
         emergency(msg)
 
     def exception(self, ex, val, tb=None):
-        error("{}: {}".format(ex.__name__, val))
+        error("Exception: {}: {}".format(ex.__name__, val))
 
     @property
     def logmask(self):
