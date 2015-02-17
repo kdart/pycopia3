@@ -114,6 +114,7 @@ class Scheduler:
         signal.siginterrupt(signum, False)
         timer = timers.IntervalTimer(signum)
         timer.settime(float(timeout))
+        kwargs = kwargs or {}
         try:
             return function(*args, **kwargs)
         finally:
