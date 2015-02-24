@@ -175,7 +175,7 @@ class DefaultReport(BaseReport):
 
     def on_suite_start(self, testsuite, time=None):
         ts = str(time.time())
-        nw = WIDTH - len(ts) - 12
+        nw = WIDTH - len(ts) - 13
         print("\nstart suite {W}{0:{width}s} {B}{1}{R}".format(
               testsuite.test_name, ts, width=nw, W=WHITE, B=BLUE, R=RESET),
               file=self._file)

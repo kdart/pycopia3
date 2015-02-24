@@ -67,12 +67,41 @@ class TestRunner:
     running tests and cleaning up afterwards.
     """
     def __init__(self, storageurl=None):
-        self.config = cf = config.get_config(storageurl=storageurl)
-        cf.arguments = []
-        if cf.flags.DEBUG:
-            logging.loglevel_debug()
-        else:
-            logging.loglevel_info()
+        self._storageurl = storageurl
+        self._config = None
+        self._environment = None
+
+    @property
+    def environment(self):
+        if self._environment is None:
+            cf = self.config
+            self._environment = environment.get_environment(
+                cf.get("environmentname", "default"), self._storageurl)
+            self._environment.owner = cf.username
+        return self._environment
+
+    @environment.deleter
+    def environment(self):
+        if self._environment is not None:
+            self._environment.clear()
+            self._environment.owner = None
+            self._environment = None
+
+    @property
+    def config(self):
+        if self._config is None:
+            self._config = cf = config.get_config(storageurl=self._storageurl)
+            cf.arguments = []
+            if cf.flags.DEBUG:
+                logging.loglevel_debug()
+            else:
+                logging.loglevel_info()
+        return self._config
+
+    @config.deleter
+    def config(self):
+        if self._config is not None:
+            self._config = None
 
     def run(self, objects, ui):
         """Main entry to run a list of runnable objects."""
@@ -139,8 +168,10 @@ class TestRunner:
         finalize = getattr(module_with_exec, "finalize", None)
         # Make functions bound methods of temporary TestCase instance.
         MethodType = type(tcinst.execute)
+
         def wrap_execute(s):
             return execute()
+
         setattr(tcinst, "execute", MethodType(wrap_execute, tcinst))
         if initialize is not None:
             def wrap_initialize(s):
@@ -261,10 +292,7 @@ class TestRunner:
         Initializes report. Sends runner and header messages to the report.
         """
         cf = self.config
-        self.environment = environment.get_environment(
-            cf.get("environmentname", "default"))
         cf.username = os.environ["USER"]
-        self.environment.owner = cf.username
         # used as the timestamp for output location.
         runnertimestamp = datetime.now().strftime("%Y%m%d-%H:%M:%S.%f")
         # set resultsdir to full path where test run artifacts are placed.
@@ -277,7 +305,7 @@ class TestRunner:
             self._ui.error(str(err))
             raise TestRunnerError("Cannot continue without report.")
         rpt.initialize(title=" ".join(cf.get("argv", ["unknown"])))
-        cf.report = rpt
+        self.report = rpt
         run_start.send(self, timestamp=runnertimestamp)
         arguments = cf.get("arguments")
         # Report command line arguments, if any.
@@ -299,17 +327,15 @@ class TestRunner:
         Sends runner end messages to report. Finalizes report.
         """
         run_end.send(self)
-        cf = self.config
-        rpt = cf.report
-        rpt.finalize()
-        self.environment.clear()
-        self.environment.owner = None
+        self.report.finalize()
+        resultsdir = self.config.resultsdir
         del self.environment
-        del cf["report"]
+        del self.config
+        del self.report
         # remove log/results directory if it's empty.
-        st = os.stat(cf.resultsdir)
+        st = os.stat(resultsdir)
         if st.st_nlink == 2:
-            os.rmdir(cf.resultsdir)
+            os.rmdir(resultsdir)
 
 
 def _aggregate_returned_results(resultlist):

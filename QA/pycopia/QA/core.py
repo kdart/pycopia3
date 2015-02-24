@@ -735,7 +735,7 @@ class TestSuite:
     def __init__(self, config, environment=None, ui=None, nested=0, name=None):
         self.config = config
         self.environment = environment
-        self.ui = ui
+        self.UI = ui
         cl = self.__class__
         self.test_name = name or "{}.{}".format(cl.__module__, cl.__name__)
         self.result = TestResult.NA
@@ -762,7 +762,7 @@ class TestSuite:
                 pretestclass = module.get_object(impl)
                 pretestclass.set_test_options()
                 preentry = TestEntry(
-                    pretestclass(self.config, self.environment, self.ui),
+                    pretestclass(self.config, self.environment, self.UI),
                     prereq.args, prereq.kwargs, True)
                 presig, argsig = preentry.signature
                 if presig not in self._multitestset:
@@ -785,7 +785,7 @@ class TestSuite:
         if isinstance(_testclass, str):
             _testclass = module.get_class(_testclass)
         _testclass.set_test_options()
-        testinstance = _testclass(self.config, self.environment, self.ui)
+        testinstance = _testclass(self.config, self.environment, self.UI)
         entry = TestEntry(testinstance, args, kwargs, False)
         self._add_with_prereq(entry)
 
@@ -845,7 +845,7 @@ class TestSuite:
         if isinstance(_testclass, str):
             _testclass = module.get_class(_testclass)
         _testclass.set_test_options()
-        testinstance = _testclass(self.config, self.environment, self.ui)
+        testinstance = _testclass(self.config, self.environment, self.UI)
         try:
             entry = TestEntrySeries(
                 testinstance, N, chooser, filter, args, kwargs)
@@ -982,7 +982,7 @@ class TestSuite:
                 if self._nested:
                     raise TestSuiteAbort("Sub-suite aborted by user.")
                 else:
-                    if self.config.UI.yes_no("Test interrupted. Abort suite?"):
+                    if self.UI.yes_no("Test interrupted. Abort suite?"):
                         self.info("Test suite aborted by user.")
                         break
             except TestSuiteAbort as err:
