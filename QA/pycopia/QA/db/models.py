@@ -16,20 +16,6 @@ Data model for QA framework. May also serve a base for lab management, since it
 contains complete information about all equipment and networks.
 """
 
-# Every table a QA framework could ever want. ;)
-TABLES = ['AccountIds', 'CountryCodes', 'Addresses', 'AttributeType', 'User',
-          'UserMessage', 'AuthGroup', 'AuthPermission', 'Contacts',
-          'Corporations', 'EquipmentModel', 'Location', 'LanguageCodes',
-          'Equipment', 'ClientSession', 'Components', 'ProjectCategory',
-          'Projects', 'TestSuites', 'RequirementRef', 'TestCases', 'Config',
-          'CorpAttributeType', 'FunctionalArea', 'EnvironmentAttributeType',
-          'Environments', 'Function', 'Software', 'InterfaceType', 'Networks',
-          'Interfaces', 'LanguageSets', 'ProjectVersions', 'RiskCategory',
-          'RiskFactors', 'Schedule', 'SoftwareVariant', 'TestJobs',
-          'TestResults', 'TestResultsData', 'Testequipment', 'UseCases', ]
-
-__all__ = TABLES + ["get_rowdisplay"]
-
 from datetime import datetime
 from hashlib import sha1
 from urllib import parse as urlparse
@@ -42,7 +28,27 @@ from pycopia.aid import hexdigest, unhexdigest, NULL
 from pycopia.QA.exceptions import (ModelError, ModelAttributeError,
                                    ModelValidationError)
 from pycopia.QA import constants
+from pycopia.QA.db.shortcuts import ManyToManyField
+
 from pycopia.QA.db.fields import *  # noqa
+
+
+# Every table a QA framework could ever want. ;)
+TABLES = ['AccountIds', 'CountryCodes', 'Addresses', 'AttributeType', 'User',
+          'UserMessage', 'AuthGroup', 'AuthPermission', 'Contacts',
+          'Corporations', 'EquipmentModel', 'Location', 'LanguageCodes',
+          'Equipment', 'ClientSession', 'Components', 'ProjectCategory',
+          'Projects', 'TestSuites', 'RequirementRef', 'TestCases', 'Config',
+          'CorpAttributeType', 'FunctionalArea', 'EnvironmentAttributeType',
+          'Environments', 'Function', 'Software', 'InterfaceType', 'Networks',
+          'Interfaces', 'LanguageSets', 'ProjectVersions', 'RiskCategory',
+          'RiskFactors', 'Schedule', 'SoftwareVariant', 'TestJobs',
+          'TestResults', 'TestResultsData', 'Testequipment', 'UseCases', ]
+
+__all__ = TABLES + ['time_now', 'coerce_value_type', 'get_columns',
+                    'get_foreign_keys', 'get_metadata', 'get_column_metadata',
+                    'get_rowdisplay', 'get_primary_key_name',
+                    'get_primary_key_value', 'get_tables', 'connect']
 
 
 UTC = timezone('UTC')
@@ -131,9 +137,9 @@ class User(BaseModel):
     last_login = DateTimeTZField(default=time_now)
     date_joined = DateTimeTZField(default=time_now)
     email = CharField(max_length=75, null=True)
-    is_active = BooleanField()
-    is_staff = BooleanField()
-    is_superuser = BooleanField()
+    is_active = BooleanField(default=True)
+    is_staff = BooleanField(default=True)
+    is_superuser = BooleanField(default=False)
 
     class Meta:
         db_table = 'auth_user'
@@ -382,7 +388,7 @@ class EquipmentModel(BaseModel):
             pass
         else:
             with database.atomic():
-                ea.delete()
+                ea.delete_instance()
 
 
 class Location(BaseModel):
@@ -482,11 +488,66 @@ class Equipment(BaseModel):
             pass
         else:
             with database.atomic():
-                ea.delete()
+                ea.delete_instance()
 
     @staticmethod
     def get_attribute_list():
         return AttributeType.get_attribute_list()
+
+    def add_interface(self, name, ifindex=None, interface_type=None,
+                      macaddr=None, ipaddr=None, network=None):
+        if interface_type is not None and isinstance(interface_type, str):
+            interface_type = InterfaceType.select().where(InterfaceType.name==interface_type).get()
+        if network is not None and isinstance(network, str):
+            network = Networks.select().where(Networks.name==network).get()
+        with database.atomic():
+            Interfaces.create(name=name, equipment=self, ifindex=ifindex,
+                interface_type=interface_type, macaddr=macaddr, ipaddr=ipaddr,
+                network=network)
+
+    def attach_interface(self, **selectkw):
+        """Attach an existing interface entry that is currently detached."""
+        q = Interfaces.select()
+        for attrname, value in selectkw.items():
+            q = q.where(getattr(Interfaces, attrname) == value)
+        intf = q.get()
+        if intf.equipment is not None:
+            raise ModelError("Interface already attached to {!r}".format(intf.equipment))
+        with database.atomic():
+            intf.equipment = self
+
+    def del_interface(self, name):
+        with database.atomic():
+            intf = self.interfaces.where(Interfaces.name == name).get()
+            intf.delete_instance()
+
+    def connect(self, intf, network, force=False):
+        """Connect this equipments named interface to a network.
+
+        If "force" is True then alter network part of address to match
+        network.
+        """
+        intf = self.interfaces.where(Interfaces.name == intf).get()
+        if isinstance(network, str):
+            network = Networks.select().where(Networks.name==network).get()
+        # alter the IP mask to match the network
+        addr = intf.ipaddr
+        if addr is not None and network.ipnetwork is not None:
+            addr.maskbits = network.ipnetwork.maskbits
+            if addr.network != network.ipnetwork.network:
+                if force:
+                    addr.network = network.ipnetwork.network
+                else:
+                    raise ModelError("Can't add interface to network with different network numbers.")
+            intf.ipaddr = addr
+        intf.network = network
+        session.commit()
+
+    def disconnect(self, session, intf):
+        intf = self.interfaces[intf]
+        intf.network = None
+        session.commit()
+
 
 
 class ClientSession(BaseModel):
@@ -719,6 +780,16 @@ class Function(BaseModel):
     class Meta:
         db_table = 'function'
 
+    def __str__(self):
+        return "Function: {}".format(self.name)
+
+    @classmethod
+    def get_by_name(cls, name):
+        try:
+            attrtype = cls.select().where(cls.name == str(name)).get()
+        except DoesNotExist:
+            raise ModelError("No Function {!r} defined.".format(name))
+        return attrtype
 
 class EnvironmentAttributeType(BaseModel):
     name = CharField(max_length=80, unique=True)
@@ -786,7 +857,7 @@ class Environments(BaseModel):
             pass
         else:
             with database.atomic():
-                ea.delete()
+                ea.delete_instance()
 
     @staticmethod
     def get_attribute_list():
@@ -820,6 +891,21 @@ class Environments(BaseModel):
                 te = Testequipment.create(
                     DUT=False, environment=self, equipment=eq)
                 _TestequipmentRoles.create(testequipment=te, function=func)
+
+    def get_equipment_with_role(self, rolename):
+        TE = Testequipment # shorthand
+        role = Function.get_by_name(rolename)
+        qq = TE.select().where(
+            TE.environment == self & TE.DUT == False & TE.roles.contains(role))
+        try:
+            te = qq.get()
+        except DoesNotExist:
+            raise ModelError("No role '{}' defined in environment '{}'.".format(
+                rolename, self.name))
+        return te.equipment
+
+    def get_all_equipment_with_role(self, rolename):
+        pass
 
 
 class Testequipment(BaseModel):
@@ -1439,75 +1525,3 @@ _ASSOC_TABLES = [
     "_SoftwareAttributes", "_SoftwareVariants", "_TestCasesAreas",
     "_TestCasesPrerequisites", "_TestSuitesSuites", "_TestSuitesTestcases",
     "_TestequipmentRoles", ]
-
-
-if __name__ == "__main__":
-    from pycopia import autodebug  # noqa
-    #connect('postgresql://pycopia@localhost/pycopia')
-    connect()
-    # print(list(AttributeType.get_attribute_list()))
-
-    manu = Corporations.select().first()
-    print(manu)
-    #EquipmentModel.create(name="TestModel", manufacturer=manu)
-    #database.commit()
-    em = EquipmentModel.select().where(EquipmentModel.name == "TestModel").get()
-    print(em)
-    #eq = Equipment.select().first()
-    #print(eq)
-
-    #Equipment.create(name="TestEquipment", model=em)
-    #database.commit()
-
-    eq = Equipment.select().where(Equipment.name == "TestEquipment").get()
-    print(eq)
-
-    #eq.set_attribute("accessmethod", "testme")
-    print("{} accessmethod: {!r}".format(eq, eq.get_attribute("accessmethod")))
-
-#    print("Equipment metadata:")
-#    print(get_metadata(Equipment))
-
-#    print("Primary keys:")
-#    assert get_primary_key_name(Equipment) == "id"
-#    print("     Equipment:", get_primary_key_name(Equipment))
-#    print(" ClientSession:", get_primary_key_name(ClientSession))
-#
-#    print(get_column_metadata(Equipment, "interfaces"))
-#    print(get_column_metadata(Networks, "interfaces"))
-#
-#    print("EnumField choices:")
-#    print(AttributeType.value_type.choices)
-
-    # print(get_choices(Equipment, "interfaces", order_by=None))
-    # print(Equipment.attributes)
-    # print(Equipment.interfaces)
-    # print(eq.attributes)
-    # print("Interfaces:")
-    # print(eq.interfaces)
-    # eq.add_interface("eth1", interface_type="ethernetCsmacd",
-    #     ipaddr="172.17.101.2/24")
-
-#    for res in TestResults.get_latest_results():
-#        print (res)
-
-#    user = User.get_by_username("keith")
-#    print(user)
-#    print(type(user))
-#    print(user.full_name)
-#    lr = TestResults.get_latest_run(user)
-#    print(lr)
-#    tc = TestCase.get_by_implementation(
-#           "testcases.unittests.WWW.client.HTTPPageFetch")
-#    print(tc)
-#    print(get_primary_key_value(tc))
-#    ltr = tc.get_latest_result()
-#    print(ltr)
-#
-#    for tr in tc.get_data():
-#        print(tr)
-
-#    print("Environments")
-#    env = Environments.select().first()
-#    print(env)
-#    print(env.get_supported_roles())
