@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
-# License: LGPL
 
 """
 Command Interface for interacting with controllers.

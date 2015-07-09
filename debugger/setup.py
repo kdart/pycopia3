@@ -1,5 +1,3 @@
-#!/usr/bin/python2.7
-# vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
 
 
 from setuptools import setup

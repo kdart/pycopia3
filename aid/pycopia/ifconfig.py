@@ -1,7 +1,18 @@
-#! python
+#!/usr/bin/python3.4
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
-# License: LGPL
 # Author unknown. Found on snippets site
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#    http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 
 import array, fcntl, struct
@@ -66,7 +77,7 @@ class IfConfig(object):
         buffer = array.array('c', '\0' * 1024)
         ifconf = struct.pack("iP", buffer.buffer_info()[1], buffer.buffer_info()[0])
         result = self._fcntl(self.SIOCGIFCONF, ifconf)
-        
+
         # loop over interface names
         iflist = []
         size, ptr = struct.unpack("iP", result)
@@ -124,6 +135,6 @@ if __name__ == "__main__":
     print(("My IP:", ifc.getAddr("eth0")))
     ifaces = ifc.getInterfaceList()
     for name in ifaces:
-        print(("%s is %s, addr %s, mask %s, bcast %s" % (name, ('DOWN', 'UP')[ifc.isUp(name)], 
+        print(("%s is %s, addr %s, mask %s, bcast %s" % (name, ('DOWN', 'UP')[ifc.isUp(name)],
             ifc.getAddr(name), ifc.getMask(name), ifc.getBroadcast(name))))
 

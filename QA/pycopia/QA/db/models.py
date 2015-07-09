@@ -1,15 +1,17 @@
 #!/usr/bin/python3.4
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
-#
-#    This library is free software; you can redistribute it and/or
-#    modify it under the terms of the GNU Lesser General Public
-#    License as published by the Free Software Foundation; either
-#    version 2.1 of the License, or (at your option) any later version.
-#
-#    This library is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-#    Lesser General Public License for more details.
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+
+#    http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Data model for QA framework. May also serve a base for lab management, since it
@@ -24,11 +26,11 @@ from pytz import timezone
 from peewee import *  # noqa
 
 from pycopia import basicconfig
+from pycopia import logging
 from pycopia.aid import hexdigest, unhexdigest, NULL
 from pycopia.QA.exceptions import (ModelError, ModelAttributeError,
                                    ModelValidationError)
 from pycopia.QA import constants
-from pycopia.QA.db.shortcuts import ManyToManyField
 
 from pycopia.QA.db.fields import *  # noqa
 
@@ -158,6 +160,32 @@ class User(BaseModel):
     def set_last_login(self):
             self.last_login = time_now()
 
+    @property
+    def groups(self):
+        return list(_AuthUserGroups.select().filter(_AuthUserGroups.user == self))
+        #EA = _EquipmentAttributes
+        #try:
+        #    ea = EA.select().where(
+        #        (EA.equipment == self) & (EA.type == attrtype)).get()
+        #except DoesNotExist:
+        #    raise ModelAttributeError(
+        #        "No attribute {!r} set.".format(attrname))
+        #return ea.value
+
+    @groups.setter
+    def groups(self, usergroup):
+        self.group_add(usergroup)
+
+    @groups.deleter
+    def groups(self, usergroup):
+        pass
+
+    def group_add(self, usergroup):
+        if not isinstance(usergroup, (list, tuple)):
+            usergroup = [usergroup]
+        inserts = [{"user": self, "group": grp} for grp in usergroup]
+        _AuthUserGroups.insert_many(inserts).execute()
+
     # Passwords are stored in the database encrypted.
     @property
     def password(self):
@@ -192,8 +220,8 @@ def _get_secret():
     try:
         cf = basicconfig.get_config("auth.conf")
     except basicconfig.ConfigReadError:
-        print("User encryption key not found for auth app, using default.",
-              file=sys.stderr)
+        logging.warn(
+            "User encryption key not found for auth app, using default.")
         _SECRET_KEY = b"Testkey"
     else:
         _SECRET_KEY = cf.SECRET_KEY.encode("utf-8")
@@ -265,7 +293,7 @@ class _AuthUserUserPermissions(BaseModel):
 
 class _AuthUserGroups(BaseModel):
     user = ForeignKeyField(db_column='user_id', rel_model=User, to_field='id',
-                           related_name="groups",
+                           related_name="_groups",
                            on_update="CASCADE", on_delete="CASCADE")
     group = ForeignKeyField(db_column='group_id',
                             rel_model=AuthGroup, to_field='id')
@@ -896,7 +924,7 @@ class Environments(BaseModel):
         TE = Testequipment # shorthand
         role = Function.get_by_name(rolename)
         qq = TE.select().where(
-            TE.environment == self & TE.DUT == False & TE.roles.contains(role))
+            TE.environment == self & TE.DUT == False & TE.roles == role)
         try:
             te = qq.get()
         except DoesNotExist:
