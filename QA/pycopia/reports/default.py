@@ -39,6 +39,7 @@ UNDERLINE_OFF = "\x1b[24m"
 INVERSE_ON = "\x1b[7m"
 INVERSE_OFF = "\x1b[27m"
 
+BLACK = "\x1b[30m"
 RED = "\x1b[31m"
 GREEN = "\x1b[32m"
 YELLOW = "\x1b[33m"
@@ -120,13 +121,13 @@ class DefaultReport(BaseReport):
         printer = pprint.PrettyPrinter(stream=file, indent=8, width=WIDTH-16,
                                        depth=None)
         self._pprint = printer.pprint
-        print("{I}{0:^{width}.{width}s}{N}".format(title,
-              I=INVERSE_ON, N=INVERSE_OFF, width=WIDTH), file=file)
+        print("{S}{0:^{width}.{width}s}{E}".format(title,
+              S=YELLOW_BACK+BLACK, E=RESET, width=WIDTH), file=file)
 
     def finalize(self):
         super().finalize()
-        print("{I}{0:^{width}s}{N}".format("Done",
-              I=INVERSE_ON, N=INVERSE_OFF, width=WIDTH), file=self._file)
+        print("{S}{0:^{width}s}{E}".format("Done",
+              S=CYAN_BACK+BLACK, E=RESET, width=WIDTH), file=self._file)
         self._pprint = None
         self._file = None
 
