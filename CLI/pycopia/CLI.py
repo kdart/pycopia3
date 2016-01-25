@@ -49,11 +49,6 @@ from pycopia import tty
 from pycopia import getopt
 
 
-# global timer for timing methods
-from pycopia.OS import scheduler
-timer = scheduler.get_scheduler()
-del scheduler
-
 _DEBUG = False
 
 
@@ -95,9 +90,6 @@ argument must match a name of a method.
         self._obj = None # may be in instance of some interface commands may use.
         self.set_userinterface(ui)
         self.initialize()
-
-    def __del__(self):
-        self.stop(None)
 
     # optional extra initialization. Override in subclass if desired.
     def initialize(self):
@@ -503,45 +495,10 @@ argument must match a name of a method.
             self._print("%s (%s)" % (ex, val))
             return 1
 
-    def sleep(self, argv):
-        """sleep <secs>
-    Sleeps for <secs> seconds."""
-        secs = int(argv[1])
-        timer.sleep(secs)
-    delay = sleep # alias
-
     def stty(self, argv):
         """stty <args>
     Sets or clears tty flags. May also use "clear", "reset", "sane". """
         self._print(tty.stty(self._ui._io.fileno(), *tuple(argv[1:])))
-
-    def repeat(self, argv):
-        """repeat <interval> <command> [<args>...]
-    Repeats a command every <interval> seconds. If <interval> is zero then
-    loop forever (or until interrupted). If <interval> is negative then loop
-    with a count of the absolute value of <interval>."""
-        if self._repeater:
-            self._print("Repeat command already defined. Run 'stop' first.")
-            return
-        argv.pop(0) # eat name
-        interval = int(argv.pop(0))
-        argv = self._expand_aliases(argv)
-        meth = getattr(self, argv[0])
-        if interval > 0:
-            wr = _RepeatWrapper(self._ui._io, meth, (argv,))
-            self._repeater = timer.add(interval, 0, wr, repeat=1)
-        elif interval == 0:
-            try:
-                while 1:
-                    meth(argv)
-                    # OOO cheat a little. This is required to keep PagedIO
-                    # from asking to press a key.
-                    self._ui._io.read(0)
-            except KeyboardInterrupt:
-                pass
-        else:
-            for i in range(-interval):
-                meth(argv)
 
     def cycle(self, argv):
         """cycle <range> <command> [<arg>...]
@@ -576,22 +533,6 @@ argument must match a name of a method.
                 newargs[sloc] = newargs[sloc].replace("%", str(i))
             self._ui.print(" ".join(newargs))
             meth(newargs)
-
-    def stop(self, argv):
-        """stop
-    Stops a repeating command."""
-        if self._repeater:
-            timer.remove(self._repeater)
-            self._repeater = None
-
-    def schedule(self, argv):
-        """schedule <delay> <command> [<args>...]
-    Schedules a command to run <delay> seconds from now."""
-        argv.pop(0) # eat name
-        delay = int(argv.pop(0))
-        argv = self._expand_aliases(argv)
-        meth = getattr(self, argv[0])
-        timer.add(delay, 0, meth, (argv,), repeat=0)
 
     def time(self, argv):
         """time <command> [<args>...]
@@ -750,7 +691,7 @@ class DictCLI(BaseCommands):
         self._environ["PS1"] = "Dict> "
 
     def _reset_scopes(self):
-        names = map(str, self._obj.keys())
+        names = list(map(str, self._obj.keys()))
         self.add_completion_scope("get", names)
         self.add_completion_scope("set", names)
         self.add_completion_scope("pop", names)
@@ -809,7 +750,7 @@ class DictCLI(BaseCommands):
         """keys
     Show all mapping keys."""
         keys = self._obj.keys()
-        self._print_list(map(repr, keys))
+        self._print_list(list(map(repr, keys)))
         return keys
 
     def values(self, argv):
@@ -1068,7 +1009,7 @@ class Completer(object):
         assert type(namespace) is dict, "namespace must be a dict type"
         self.namespace = namespace
         self.globalNamespace = Completer.get_globals()
-        self.globalNamespace.extend(map(str, namespace.keys()))
+        self.globalNamespace.extend(list(map(str, namespace.keys())))
         self.matches = []
 
     def complete(self, text, state):
