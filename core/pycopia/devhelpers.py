@@ -1,4 +1,4 @@
-#!/usr/bin/python3.4
+#!/usr/bin/python3.5
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """
-Functions to aid Python development.
+Functions to aid Python development (on *nix systems).
 """
 
 import sys
@@ -25,11 +25,12 @@ import imp
 from pycopia.urls import UniversalResourceLocator as URL
 
 PYTHON = os.environ.get("PYTHONBIN", sys.executable) # set PYTHONBIN for alternate interpreter
+REMOTE_HOME = os.environ.get("REMOTE_HOME", "/home")
 
 
 def run_config(cfstring, param):
     if not cfstring:
-        print ("No command string defined to run {0}.".format(param), file=sys.stderr)
+        print("No command string defined to run {0}.".format(param), file=sys.stderr)
         return
     try:
         cmd = cfstring % param
@@ -51,7 +52,7 @@ def pyterm(filename="", interactive=1):
                     user = url.user
                 else:
                     user = os.environ["USER"]
-                path = "/home/{}/{}".format(user, path)
+                path = "{}/{}/{}".format(REMOTE_HOME, user, path)
             remcmd = python_command(path, interactive)
             if url.user:
                 cmd = 'ssh -t {}@{} {}'.format(url.user, url.host, remcmd)
@@ -284,10 +285,12 @@ if __name__ == "__main__":
     for testname in (
             "import re\n",
             "import pycopia.aid\n",
+            "import pycopia.tty\n",
 #            "import pycopia.WWW\n",
 #            "import pycopia.WWW.XHTML\n",
             "from pycopia import aid\n",
-            "from pycopia.OS import IOCTL\n",
+            "from pycopia import ascii\n",
+#            "from pycopia.OS import IOCTL\n",
 #            "from pycopia.WWW import XHTML\n",
 #            "import puremvc\n",
 #            "import puremvc.patterns\n",

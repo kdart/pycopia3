@@ -53,7 +53,7 @@ from errno import EINTR, ECONNREFUSED
 from io import BytesIO
 import socket
 
-from pycopia import scheduler
+from pycopia.OS import scheduler
 
 
 SMTP_PORT = 25

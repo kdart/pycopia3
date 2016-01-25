@@ -25,7 +25,7 @@ import re
 import fnmatch
 from errno import EINTR
 
-from pycopia import scheduler
+from pycopia.OS import scheduler
 from pycopia.stringmatch import compile_exact
 import collections
 

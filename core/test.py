@@ -30,7 +30,6 @@ from pycopia import makepassword
 from pycopia import md5lib
 from pycopia import methodholder
 from pycopia import netstring
-from pycopia import scheduler
 from pycopia import smtp_envelope
 from pycopia import sourcegen
 from pycopia import shparser
@@ -50,6 +49,7 @@ from pycopia.ISO import iso3166
 from pycopia.ISO import iso639a
 
 import pycopia.OS
+from pycopia.OS import scheduler
 #import pycopia.OS.sequencer
 
 

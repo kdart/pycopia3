@@ -20,7 +20,7 @@ An urwid event loop that integrates with the Pycopia event loop and timer.
 from urwid.main_loop import ExitMainLoop
 
 from pycopia import asyncio
-from pycopia import scheduler
+from pycopia.OS import scheduler
 
 
 class PycopiaEventLoop(object):

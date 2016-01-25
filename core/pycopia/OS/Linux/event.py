@@ -20,7 +20,7 @@ Interface to produce Linux event stream from ascii data.
 
 from pycopia.fsm import FSM
 from pycopia import ascii
-from pycopia import scheduler
+from pycopia.OS import scheduler
 
 # meta modifiers for tables
 SHIFT = 0x200

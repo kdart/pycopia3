@@ -30,8 +30,8 @@ from pycopia.aid import NULL
 from pycopia.OS.procfs import ProcStat
 from pycopia.OS.exitstatus import ExitStatus
 from pycopia.OS.procutils import run_as
+from pycopia.OS import scheduler
 from pycopia.fileutils import close_on_exec, set_nonblocking
-from pycopia import scheduler
 
 
 class ProcessError(Exception):

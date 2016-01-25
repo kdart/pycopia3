@@ -27,7 +27,7 @@ import sys
 import gc
 
 from pycopia import logging
-from pycopia import scheduler
+from pycopia.OS import scheduler
 
 from pycopia.QA.exceptions import ConfigError
 from pycopia.QA.db import models

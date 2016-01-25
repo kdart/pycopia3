@@ -50,7 +50,7 @@ from pycopia import getopt
 
 
 # global timer for timing methods
-from pycopia import scheduler
+from pycopia.OS import scheduler
 timer = scheduler.get_scheduler()
 del scheduler
 

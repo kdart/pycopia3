@@ -31,6 +31,7 @@ platdir = {
     "linux2":"Linux",
     "linux3":"Linux",
     "linux":"Linux",
+    "darwin":"Darwin",
     "win32":"Win32"}[sys.platform]
 
 __path__.append(os.path.join(__path__[0], platdir))

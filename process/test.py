@@ -10,13 +10,13 @@ from pycopia import sshlib
 from pycopia import sudo
 
 def _sub_function():
-    from pycopia import scheduler
+    from pycopia.OS import scheduler
     scheduler.sleep(5)
     return None
 
 def _co_function():
     import sys
-    from pycopia import scheduler
+    from pycopia.OS import scheduler
     sys.stdout.write("hello from co_function\n")
     scheduler.sleep(5)
     return None

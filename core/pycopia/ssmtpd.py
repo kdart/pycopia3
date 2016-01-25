@@ -15,7 +15,7 @@ import re
 from errno import EINTR, EAGAIN
 import socket
 
-from pycopia import scheduler
+from pycopia.OS import scheduler
 
 from pycopia.inet.rfc2822 import formatdate
 from pycopia.smtp_envelope import Envelope

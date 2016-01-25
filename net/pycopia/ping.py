@@ -1,4 +1,4 @@
-#!/usr/bin/python3.4
+#!/usr/bin/python3
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +15,8 @@
 
 import sys
 
-from pycopia import scheduler
 from pycopia import proctools
+from pycopia.OS import scheduler
 
 
 class Error(Exception):
