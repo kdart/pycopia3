@@ -1,4 +1,4 @@
-#!/usr/bin/python3.4
+#!/usr/bin/python3
 # vim:ts=4:sw=4:softtabstop=4:smarttab:expandtab
 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,10 +14,13 @@
 # limitations under the License.
 
 """
-General text functions. You may import this instead of the stock
-"string" module in most cases.
-
+General text functions that are similar to command line tools.
 """
+
+__all__ = ['cut_string', 'random_string', 'crange', 'maketrans', 'identifier',
+'keyword_identifier', 'translate', 'grep', 'cat', 'text', 'tac', 'head',
+'tail', 'cksum', 'md5sum', 'sha1sum', 'sort', 'uniq', 'wc', 'nl', 'cut',
+'hexdump']
 
 import io
 import re
