@@ -1,55 +1,97 @@
-#!/usr/bin/python3.4
+#!/usr/bin/env python3.5
 
-# Tell you which object is obtained by an import. This can also be used in
-# shell scripts to determine if a particular package is installed or not. Will
-# return errorlevel of 2 if object is not found.
-
+"""
+Uses the import machinery to locate a module and report what it found, such as
+where the source file is.
+"""
 
 import sys
-import imp
+import os
+import importlib.util
+import getopt
 
 
-_DESC = {
-    imp.PY_SOURCE: "python source file",
-    imp.PY_COMPILED: "compiled code object file",
-    imp.C_EXTENSION: "dynamically loadable shared library",
-    imp.PKG_DIRECTORY: "base package",
-    imp.C_BUILTIN: "built-in module",
-    imp.PY_FROZEN: "frozen module",
-}
-
-def pywhich(argv):
-    """pywhich <modname>
-    Tell you which actual file is being used by an import. The module name should be a full module path (e.g. pycopia.OS.rtc
+def module_from_path(fname):
+    """Find and return the module name given a full path name.
+    Return None if file name not in the package path.
     """
-    if len(argv) < 2:
-        print (pywhich.__doc__)
-        return
-    for modname in argv[1:]:
-        try:
-            fo, path, (suffix, mode, mtype) = imp.find_module(modname) # finds builtins
-        except ImportError: # the simpler find_module throws this on namespace packages and subpackages.
-            try:
-                __import__(modname)
-                pkg = sys.modules[modname]
-                if hasattr(pkg, "__path__"): # complex package
-                    print("{} => {} (package).".format(modname, pkg.__path__[0]))
-                else:
-                    print("{} => {}".format(modname, pkg.__file__))
-            except:
-                ex, val, tb = sys.exc_info()
-                print("{} => {}: {}!".format(modname, ex.__name__, val))
-                return 2
-        else:
-            if fo is None:
-                print("{} => {} ({}).".format(modname, path, _DESC[mtype]))
+    dirname, basename = os.path.split(fname)
+    for p in sys.path:
+        if fname.startswith(p):
+            pkgname = ".".join(dirname[len(p)+1:].split("/"))
+            if pkgname:
+                return pkgname + "." + os.path.splitext(basename)[0]
             else:
-                fo.close()
-                __import__(modname)
-                pkg = sys.modules[modname]
-                if hasattr(pkg, "__path__"):
-                    print("{} => {} (package).".format(modname, pkg.__file__))
-                else:
-                    print("{} => {} ({}).".format(modname, pkg.__file__, _DESC[mtype]))
+                return os.path.splitext(basename)[0]
+    return None
 
-sys.exit(pywhich(sys.argv))
+
+def getmod(args):
+    for fname in args:
+        modname = module_from_path(fname)
+        if modname:
+            print(modname)
+
+
+def pyfiles(args):
+    for modname in args:
+        spec = importlib.util.find_spec(modname)
+        if spec.has_location:
+            print(spec.origin)
+        else:
+            print(spec.cached)
+
+
+def pywhich(args):
+    for modname in args:
+        spec = importlib.util.find_spec(modname)
+        if spec.has_location:
+            if spec.loader.is_package(modname):
+                print("{} -> {} (package)".format(spec.name, spec.origin))
+            else:
+                cached = "(cached)" if spec.cached else ""
+                print("{} -> {} {}".format(spec.name, spec.origin, cached))
+        else:
+            print("No source location.")
+
+
+def main(argv):
+    """pywhich [-fr] <modname>
+    Tell you which actual file is being used by an import. The module name
+    should be a full module path (e.g. pycopia.OS.rtc).
+
+    If the `-f` option is given then give the full path name to the source
+    file, if available.
+    """
+    do_file = False
+    do_reverse = False
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "h?fr", ["help", "file",
+                                   "reverse"])
+    except getopt.GetoptError as err:
+        print(str(err))
+        print(pywhich.__doc__)
+        return 1
+
+    for option, argument in opts:
+        if option in ("-h", "--help"):
+            print(pywhich.__doc__)
+            return 2
+        elif option in ("-f", "--file"):
+            do_file = True
+        elif option in ("-r", "--reverse"):
+            do_reverse = True
+
+    if not args:
+        print(pywhich.__doc__)
+        return 1
+
+    if do_reverse:
+        return getmod(args)
+    elif do_file:
+        return pyfiles(args)
+    else:
+        return pywhich(args)
+
+
+sys.exit(main(sys.argv))
