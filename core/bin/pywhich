@@ -45,14 +45,17 @@ def pyfiles(args):
 def pywhich(args):
     for modname in args:
         spec = importlib.util.find_spec(modname)
-        if spec.has_location:
-            if spec.loader.is_package(modname):
-                print("{} -> {} (package)".format(spec.name, spec.origin))
+        if spec:
+            if spec.has_location:
+                if spec.loader.is_package(modname):
+                    print("{} -> {} (package)".format(spec.name, spec.origin))
+                else:
+                    cached = "(cached)" if spec.cached else ""
+                    print("{} -> {} {}".format(spec.name, spec.origin, cached))
             else:
-                cached = "(cached)" if spec.cached else ""
-                print("{} -> {} {}".format(spec.name, spec.origin, cached))
+                print("No source location.")
         else:
-            print("No source location.")
+            print("Not found.")
 
 
 def main(argv):
