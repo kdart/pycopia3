@@ -7,6 +7,7 @@ where the source file is.
 
 import sys
 import os
+import importlib
 import importlib.util
 import getopt
 
@@ -36,10 +37,18 @@ def getmod(args):
 def pyfiles(args):
     for modname in args:
         spec = importlib.util.find_spec(modname)
-        if spec.has_location:
-            print(spec.origin)
+        if spec:
+            if spec.has_location:
+                if spec.loader.is_package(modname):
+                    mod = importlib.import_module(spec.name)
+                    for p in mod.__path__:
+                        print(p)
+                else:
+                    print(spec.origin)
+            else:
+                print(spec.cached)
         else:
-            print(spec.cached)
+            print("{} not found.".format(modname))
 
 
 def pywhich(args):
@@ -48,7 +57,10 @@ def pywhich(args):
         if spec:
             if spec.has_location:
                 if spec.loader.is_package(modname):
-                    print("{} -> {} (package)".format(spec.name, spec.origin))
+                    print("{} is a package -> {}\nPaths:".format(spec.name, spec.origin))
+                    mod = importlib.import_module(spec.name)
+                    for p in mod.__path__:
+                        print(" {}".format(p))
                 else:
                     cached = "(cached)" if spec.cached else ""
                     print("{} -> {} {}".format(spec.name, spec.origin, cached))
@@ -64,7 +76,10 @@ def main(argv):
     should be a full module path (e.g. pycopia.OS.rtc).
 
     If the `-f` option is given then give the full path name to the source
-    file, if available.
+    file, if available. If it's a package then the package search paths are printed.
+
+    Use -r for a reverse mapping. Given a file, find the module name used to
+    import it.
     """
     do_file = False
     do_reverse = False
@@ -73,12 +88,12 @@ def main(argv):
                                    "reverse"])
     except getopt.GetoptError as err:
         print(str(err))
-        print(pywhich.__doc__)
+        print(main.__doc__)
         return 1
 
     for option, argument in opts:
         if option in ("-h", "--help"):
-            print(pywhich.__doc__)
+            print(main.__doc__)
             return 2
         elif option in ("-f", "--file"):
             do_file = True
@@ -86,7 +101,7 @@ def main(argv):
             do_reverse = True
 
     if not args:
-        print(pywhich.__doc__)
+        print(main.__doc__)
         return 1
 
     if do_reverse:
