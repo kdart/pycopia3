@@ -16,6 +16,8 @@ def module_from_path(fname):
     """Find and return the module name given a full path name.
     Return None if file name not in the package path.
     """
+    if not os.path.exists(fname):
+        print("Warning: given path name does not exist.", file=sys.stderr)
     dirname, basename = os.path.split(fname)
     for p in sys.path:
         if fname.startswith(p):
@@ -53,7 +55,13 @@ def pyfiles(args):
 
 def pywhich(args):
     for modname in args:
-        spec = importlib.util.find_spec(modname)
+        try:
+            spec = importlib.util.find_spec(modname)
+        except ValueError:
+            mod = sys.modules[modname]
+            for p in mod.__path__:
+                print(" {}".format(p))
+            return
         if spec:
             if spec.has_location:
                 if spec.loader.is_package(modname):

@@ -92,8 +92,10 @@ sys.ps2 = os.environ.get("PYPS2", "more...> ")
 
 
 def mydisplayhook(obj):
-    pprint(obj)
-    setattr(sys.modules["__main__"], "_", obj)
+    if obj is not None:
+        pprint(obj)
+        setattr(sys.modules["__main__"], "_", obj)
+
 sys.displayhook = mydisplayhook
 setattr(sys.modules["__main__"], "_", None)
 
