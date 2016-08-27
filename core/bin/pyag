@@ -1,0 +1,84 @@
+#!/usr/bin/env python3.5
+
+"""
+Find a string in a Python package tree.
+
+First finds the location of a named Python package. Then uses silver_searcher
+(ag) command in Python mode to find the RE you want.
+
+See:
+
+    https://github.com/ggreer/the_silver_searcher
+
+for details.
+
+Examples:
+
+    pyag ^class socket
+    pyag "Exception " asyncio
+    pyag "raise ValueError" asyncio socket
+
+"""
+
+import sys
+import subprocess
+import importlib
+import importlib.util
+import getopt
+
+
+def get_paths(args):
+    paths = []
+    for modname in args:
+        try:
+            spec = importlib.util.find_spec(modname)
+        except ValueError:  # Work around bug here.
+            mod = sys.modules[modname]
+            for p in mod.__path__:
+                paths.append(p)
+            continue
+        if spec:
+            if spec.has_location:
+                if spec.loader.is_package(modname):
+                    mod = importlib.import_module(spec.name)
+                    for p in mod.__path__:
+                        paths.append(p)
+                else:
+                    paths.append(spec.origin)
+    return paths
+
+
+def main(argv):
+    """pyag <string> <modname>...
+
+    Searches for <string> in source of modules or packages given after search
+    term. Only search Python source files.
+    """
+    do_file = False
+    do_reverse = False
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "h?", ["help"])
+    except getopt.GetoptError as err:
+        print(str(err))
+        print(main.__doc__)
+        return 1
+
+    for option, argument in opts:
+        if option in ("-h", "--help"):
+            print(main.__doc__)
+            return 2
+
+    if len(args) < 2:
+        print(main.__doc__)
+        return 1
+
+    pattern = args[0]
+    paths = get_paths(args[1:])
+    if paths:
+        return subprocess.call(['ag', '--python', pattern] + paths)
+    else:
+        print("No packages found.")
+        return 1
+
+
+sys.exit(main(sys.argv))
