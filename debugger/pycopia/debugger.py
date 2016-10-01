@@ -368,6 +368,8 @@ class Debugger(bdb.Bdb):
     def print_exc(self, ex, val):
         uif = self._ui.format
         self._ui.print(uif('%R'), ex, uif('%N:'), str(val))
+        if val.__cause__ is not None:
+            self.print_exc("Because: {}".format(val.__cause__.__class__.__name__), val.__cause__)
 
     def debug(self, arg):
         sys.settrace(None)
@@ -960,7 +962,11 @@ def post_mortem(t, exc=None, val=None, io=None):
     while t.tb_next is not None:
         t = t.tb_next
     if exc and val:
-        p.print_exc(exc, val)
+        p.print_exc(exc.__name__, val)
+    else:
+        ex, val, _ = sys.exc_info()
+        del _
+        p.print_exc(ex.__name__, val)
     p.interaction(t.tb_frame, t)
 
 def debug(method, *args, **kwargs):
