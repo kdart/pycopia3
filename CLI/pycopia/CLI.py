@@ -29,6 +29,7 @@ __all__ = ['CLIException', 'CommandQuit', 'CommandExit', 'NewCommand',
 
 
 import sys, os
+import functools
 from io import BytesIO
 
 try:
@@ -336,15 +337,15 @@ argument must match a name of a method.
         if len(argv) == 1:
             names = list(self._environ.keys())
             names.sort()
-            ms = reduce(max, map(len, names))
+            ms = functools.reduce(max, map(len, names))
             for name in names:
                 value = self._environ[name]
-                self._print("%*s = %s" % (ms, name, safe_repr(value)))
+                self._print("{:{maxsize}s} = {}".format(name, safe_repr(value), maxsize=ms))
         else:
             s = []
             for name in argv[1:]:
                 try:
-                    s.append("%s = %s" % (name, safe_repr(self._environ[name])))
+                    s.append("{} = {}".format(name, safe_repr(self._environ[name])))
                 except KeyError:
                     pass
             self._print("\n".join(s))

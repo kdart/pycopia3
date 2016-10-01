@@ -61,7 +61,7 @@ def mode2flags(mode):
     """mode2flags(modestring)
     Converts a file mode in string form (e.g. "w+") to an integer flag value
     suitable for os.open().  """
-    flags = os.O_LARGEFILE
+    flags = getattr("O_LARGEFILE", os, 0)
     if mode == "a":
         flags = flags | os.O_APPEND | os.O_WRONLY
     elif mode == "a+":

@@ -20,7 +20,7 @@ User Interface base classes and themes.
 import sys
 import os
 import time
-from io import BytesIO
+from io import StringIO
 
 from pycopia import environ
 from pycopia import cliutils
@@ -737,7 +737,7 @@ def _safe_repr(obj, context, maxlevels, level):
             closure = "'"
             quotes = {"'": "\\'"}
         qget = quotes.get
-        sio = BytesIO()
+        sio = StringIO()
         write = sio.write
         for char in obj:
             if char.isalpha():
@@ -888,6 +888,7 @@ def _test(argv):
     ui.print("Hello world!")
     inp = ui.user_input("Type something> ")
     ui.print("You typed:", inp)
+    print(safe_repr("hello safe_repr"))
     return ui
 
 if __name__ == "__main__":
