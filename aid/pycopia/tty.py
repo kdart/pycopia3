@@ -46,7 +46,7 @@ OFLAGS = [ "OPOST", "ONLCR", "OCRNL", "ONOCR", "ONLRET"]
 
 CFLAGS = ["CSTOPB", "CREAD", "PARENB", "CLOCAL", "CRTSCTS",]
 
-LFLAGS = [ "ISIG", "ICANON", "XCASE", "ECHO", "ECHOE", "ECHOK", "ECHONL",
+LFLAGS = [ "ISIG", "ICANON", "ECHO", "ECHOE", "ECHOK", "ECHONL",
         "ECHOCTL", "ECHOPRT", "ECHOKE", "FLUSHO", "NOFLSH", "TOSTOP",
         "PENDIN", "IEXTEN",]
 
@@ -55,7 +55,7 @@ BAUDS = [ 'B0', 'B50', 'B75', 'B110', 'B134', 'B150', 'B200', 'B300',
     'B57600', 'B115200', 'B230400', 'B460800',]
 
 CCHARS = [ "VINTR", "VQUIT", "VERASE", "VKILL", "VEOF", "VTIME",
-        "VMIN", "VSWTC", "VSTART", "VSTOP", "VSUSP", "VEOL",
+        "VMIN", "VSTART", "VSTOP", "VSUSP", "VEOL",
         "VREPRINT", "VDISCARD", "VWERASE", "VLNEXT", "VEOL2",]
 
 
@@ -254,7 +254,7 @@ def sane(fd, when=TCSANOW):
     mode[IFLAG] |= (ICRNL | BRKINT | IGNPAR | IXON )
     mode[OFLAG] &= ~(OLCUC | OCRNL | ONLRET | ONOCR | OFILL | OFDEL )
     mode[OFLAG] |= (OPOST | ONLCR | NL0 | CR0 | TAB0 | BS0 | VT0 | FF0)
-    mode[LFLAG] &= ~(ECHONL | ECHOPRT | NOFLSH | XCASE | TOSTOP)
+    mode[LFLAG] &= ~(ECHONL | ECHOPRT | NOFLSH | TOSTOP)
     mode[LFLAG] |= (ICANON | ISIG | IEXTEN | ECHO | ECHOCTL | ECHOE | ECHOK | ECHOKE)
     mode[CC][VMIN] = 1
     mode[CC][VTIME] = 0
