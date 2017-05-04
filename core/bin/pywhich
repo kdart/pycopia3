@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.5
+#!/usr/bin/env python3.6
 
 """
 Uses the import machinery to locate a module and report what it found, such as
